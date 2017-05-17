@@ -3,8 +3,6 @@
 
 -- create HTML with `pulp build -O -t main.js`
 
--- deployed to `https://dzulhsnmr8bdu.cloudfront.net` (AWS)
-
 module Main where
 
 import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<=<), (<<<), show, (>>=), (*), (/), (>>>), (<$>), (<*>), discard)
