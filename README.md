@@ -3,7 +3,7 @@ Using `purescript-flare` to transform data pasted from an Excel pivot-table (tab
 
 Features:
 
-* round durations to 2 digits, using German number format (commas instead of periods)
+* round durations to 2 digits, using German number format (commas instead of periods)
 * split input into weeks
 * filter out rows in a week that have zero total duration
 * insert where pivot table output from Excel is missing columns because of holidays or weekends
