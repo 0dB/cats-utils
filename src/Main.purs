@@ -9,7 +9,7 @@ import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), 
 import Control.Monad.Eff (Eff)
 import Text.Parsing.CSV (Parsers, makeParsers)
 import Text.Parsing.Parser (runParser)
-import Data.List (List(Nil), elemIndex, filter, range, (:), reverse, take, drop, zipWith)
+import Data.List (List(Nil), elemIndex, filter, range, (:), reverse, take, drop, zipWith, intercalate)
 import Data.Map as M
 import Data.Int (fromString, round, toNumber)
 import Data.Maybe (Maybe(..), fromMaybe, maybe, isNothing)
@@ -24,7 +24,7 @@ import DOM (DOM)
 import Signal.Channel (CHANNEL)
 import Text.Smolder.HTML (table, td, tr, th, h2) as H
 import Text.Smolder.Markup (Markup, text) as H
-import Flare (UI, string, radioGroup)
+import Flare (UI, string, radioGroup, boolean)
 import Flare.Smolder (runFlareHTML)
 
 -- The following values are the parameters to be checked each month.  Week starts on Monday, so if first of current
@@ -137,7 +137,7 @@ showHeaderRow days = ("EXTERN" : "INTERN" : Nil) <> filler <> foldMap (\d -> "" 
 -- insert blank line every six rows (CATS only lets me add six lines at a time)
 
 showJobs :: List Int -> List Job -> List (List String)
-showJobs days = (:) (showHeaderRow days) <<< map (showJob days)
+showJobs days = (:) (showHeaderRow days) <<< intercalate (("" : Nil) : Nil) <<< groupBy 6 Nil <<< map (showJob days)
 
 -- date range (“week”) is used *twice*, first to find dates in the week being looked at
 -- (and then for filtering) and then for rendering the week (`showJobs`)
@@ -170,15 +170,16 @@ table rs = mempty
 table' :: forall e. List (List (List String)) -> H.Markup e
 table' ts = H.table $ foldMap table ts
 
-renderInput :: forall e. String -> Weekday -> H.Markup e
-renderInput s i = H.h2 (H.text "Parsed Input") <>
-                  (case input of
-                     Right input' -> table' (input' : Nil)
-                     Left err     -> H.text err) <>
-                  H.h2 (H.text "Output") <>
-                  (case output of
-                     Right output' -> table' output'
-                     Left err      -> H.text err)
+renderInput :: forall e. String -> Weekday -> Boolean -> H.Markup e
+renderInput s i b = (if b then H.h2 (H.text "Parsed Input") <>
+                               (case input of
+                                  Right input' -> table' (input' : Nil)
+                                  Left err     -> H.text err)
+                          else mempty) <>
+                    H.h2 (H.text "Output") <>
+                    (case output of
+                       Right output' -> table' output'
+                       Left err      -> H.text err)
   where input  = switchEither "Error: Parsing CSV failed!" $ runParser s excelParsers.file
         output = input >>= parsedFileToJobs >>= processJobs (toInt i) >>> pure
 
@@ -203,7 +204,10 @@ toInt Saturday = 5
 toInt Sunday = 6
 
 ui2 :: forall e e'. UI e (H.Markup e')
-ui2 = renderInput <$> string "Raw Input: " "" <*> radioGroup "First of month: " (Monday :| [Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]) toString
+ui2 = renderInput <$>
+      string "Raw Input: " "" <*>
+      radioGroup "First of month: " (Monday :| [Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]) toString <*>
+      boolean "Show parsed input: " true
 
 main :: forall a. Eff ( dom :: DOM, channel :: CHANNEL | a ) Unit
 main = runFlareHTML "controls2" "output2" ui2
