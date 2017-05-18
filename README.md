@@ -12,10 +12,10 @@ Features:
 Instructions:
 
 - Copy data from Excel pivot table and paste into the raw input field.
--- First row must contain dates (integers) and may have missing days for holidays and weekends.
--- First column must have account numbers.
--- The table data must be the effort for one account on a specific day (floating point number, using the German format).
--- Efforts will be rounded to 2 digits.
+  - First row must contain dates (integers) and may have missing days for holidays and weekends.
+  - First column must have account numbers.
+  - The table data must be the effort for one account on a specific day (floating point number, using the German format).
+  - Efforts will be rounded to 2 digits.
 - Align the calendar with the current month using the radio buttons.
 
 Note:
