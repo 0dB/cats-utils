@@ -24,13 +24,8 @@ import DOM (DOM)
 import Signal.Channel (CHANNEL)
 import Text.Smolder.HTML (table, td, tr, th, h2) as H
 import Text.Smolder.Markup (Markup, text) as H
-import Flare (UI, string, radioGroup, boolean)
+import Flare (UI, string, radioGroup)
 import Flare.Smolder (runFlareHTML)
-
--- The following values are the parameters to be checked each month.  Week starts on Monday, so if first of current
--- month is Tuesday, then daysFromPrevMonth = 1, if e. g. Saturday, then 5.
-
-daysFromPrevMonth = 5 :: Int
 
 badjobs = ("INTERFLEX" : "D1CS" : "ORGA" : "AZ" : "Sonstiges" : Nil) :: List String
 
@@ -136,8 +131,13 @@ showHeaderRow days = ("EXTERN" : "INTERN" : Nil) <> filler <> foldMap (\d -> "" 
 
 -- insert blank line every six rows (CATS only lets me add six lines at a time)
 
+emptyRow = (("" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : Nil) : Nil)  :: List (List String)
+
 showJobs :: List Int -> List Job -> List (List String)
-showJobs days = (:) (showHeaderRow days) <<< intercalate (("" : Nil) : Nil) <<< groupBy 6 Nil <<< map (showJob days)
+showJobs days = (:) (showHeaderRow days) <<<
+                intercalate emptyRow <<<
+                groupBy 6 Nil <<<
+                map (showJob days)
 
 -- date range (“week”) is used *twice*, first to find dates in the week being looked at
 -- (and then for filtering) and then for rendering the week (`showJobs`)
@@ -148,6 +148,9 @@ groupFilterShow js r = showJobs r $ filter nonZeroP $ filterDateRange r $ js
 processWeeks :: Int -> List Job -> List (List (List String))
 processWeeks offset jobs = map (groupFilterShow jobs) $ weeks (month offset)
 
+processMonth :: List Job -> List (List (List String))
+processMonth jobs = map (groupFilterShow (filter goodJob jobs)) $ (month 0) : Nil
+
 processJobs :: Int -> List Job -> List (List (List String))
 processJobs offset = processWeeks offset <<< filter goodJob
 
@@ -157,6 +160,7 @@ switchEither :: forall a b. String -> Either a b -> Either String b
 switchEither text = either (const (Left text)) Right
 
 -- TODO: How to get copy and paste to work without using " " to recognize EOL?
+
 excelParsers = makeParsers '\'' "\t" " " :: Parsers String
 
 table :: forall e. List (List String) -> H.Markup e
@@ -170,18 +174,23 @@ table rs = mempty
 table' :: forall e. List (List (List String)) -> H.Markup e
 table' ts = H.table $ foldMap table ts
 
-renderInput :: forall e. String -> Weekday -> Boolean -> H.Markup e
-renderInput s i b = (if b then H.h2 (H.text "Parsed Input") <>
-                               (case input of
-                                  Right input' -> table' (input' : Nil)
-                                  Left err     -> H.text err)
-                          else mempty) <>
-                    H.h2 (H.text "Output") <>
-                    (case output of
-                       Right output' -> table' output'
-                       Left err      -> H.text err)
-  where input  = switchEither "Error: Parsing CSV failed!" $ runParser s excelParsers.file
-        output = input >>= parsedFileToJobs >>= processJobs (toInt i) >>> pure
+renderInput :: forall e. String -> Render -> Weekday -> H.Markup e
+renderInput s r i = H.h2 (H.text "Output") <>
+                    case r of
+                      Raw        -> case input of
+                                      Right input' -> table' (input' : Nil)
+                                      Left err     -> H.text err
+                      Month      -> case normalized of
+                                      Right norm -> table' norm
+                                      Left err   -> H.text err
+                      Weeks      -> case output of
+                                      Right output' -> table' output'
+                                      Left err      -> H.text err
+
+  where input      = switchEither "Error: Parsing CSV failed!" $ runParser s excelParsers.file
+        parsed     = input >>= parsedFileToJobs
+        output     = parsed >>= processJobs (toInt i) >>> pure
+        normalized = parsed >>= processMonth >>> pure
 
 data Weekday = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday
 
@@ -203,11 +212,18 @@ toInt Friday = 4
 toInt Saturday = 5
 toInt Sunday = 6
 
+data Render = Raw | Month | Weeks
+
+toString' :: Render -> String
+toString' Raw = "Raw"
+toString' Month = "Month"
+toString' Weeks = "Weeks"
+
 ui2 :: forall e e'. UI e (H.Markup e')
 ui2 = renderInput <$>
-      string "Raw Input: " "" <*>
-      radioGroup "First of month: " (Monday :| [Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]) toString <*>
-      boolean "Show parsed input: " true
+      string "Raw Input" "" <*>
+      radioGroup "Output" (Raw :| [Weeks, Month]) toString' <*>
+      radioGroup "First of month" (Monday :| [Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]) toString
 
 main :: forall a. Eff ( dom :: DOM, channel :: CHANNEL | a ) Unit
 main = runFlareHTML "controls2" "output2" ui2
