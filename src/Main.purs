@@ -126,8 +126,16 @@ showJob days (Job { job, efforts }) = job' <> filler <> foldMap (\d -> "" : show
         showEffort :: Int -> String
         showEffort day = fromMaybe "" (M.lookup day efforts)
 
+showJob' :: List Int -> Job -> List String
+showJob' days (Job { job, efforts }) = (job : Nil) <> foldMap (\d -> showEffort d : Nil) days
+  where showEffort :: Int -> String
+        showEffort day = fromMaybe "" (M.lookup day efforts)
+
 showHeaderRow :: List Int -> List String
 showHeaderRow days = ("EXTERN" : "INTERN" : Nil) <> filler <> foldMap (\d -> "" : show d : Nil) days
+
+showHeaderRow' :: List Int -> List String
+showHeaderRow' days = ("" : Nil) <> foldMap (\d -> show d : Nil) days
 
 -- insert blank line every six rows (CATS only lets me add six lines at a time)
 
@@ -139,17 +147,27 @@ showJobs days = (:) (showHeaderRow days) <<<
                 groupBy 6 Nil <<<
                 map (showJob days)
 
+showJobs' :: List Int -> List Job -> List (List String)
+showJobs' days = (:) (showHeaderRow' days) <<<
+                 map (showJob' days)
+
 -- date range (“week”) is used *twice*, first to find dates in the week being looked at
 -- (and then for filtering) and then for rendering the week (`showJobs`)
 
 groupFilterShow :: List Job -> List Int -> List (List String)
 groupFilterShow js r = showJobs r $ filter nonZeroP $ filterDateRange r $ js
 
+groupFilterShow' :: List Job -> List Int -> List (List String)
+groupFilterShow' js r = showJobs' r js
+
 processWeeks :: Int -> List Job -> List (List (List String))
 processWeeks offset jobs = map (groupFilterShow jobs) $ weeks (month offset)
 
 processMonth :: List Job -> List (List (List String))
 processMonth jobs = map (groupFilterShow (filter goodJob jobs)) $ (month 0) : Nil
+
+processMonth' :: List Job -> List (List (List String))
+processMonth' jobs = map (groupFilterShow' jobs) $ (month 0) : Nil
 
 processJobs :: Int -> List Job -> List (List (List String))
 processJobs offset = processWeeks offset <<< filter goodJob
@@ -174,56 +192,61 @@ table rs = mempty
 table' :: forall e. List (List (List String)) -> H.Markup e
 table' ts = H.table $ foldMap table ts
 
-renderInput :: forall e. String -> Render -> Weekday -> H.Markup e
-renderInput s r i = H.h2 (H.text "Output") <>
+renderInput :: forall e. String -> Weekday -> Render -> H.Markup e
+renderInput s i r = H.h2 (H.text "Output") <>
                     case r of
                       Raw        -> case input of
                                       Right input' -> table' (input' : Nil)
                                       Left err     -> H.text err
-                      Month      -> case normalized of
-                                      Right norm -> table' norm
-                                      Left err   -> H.text err
+                      Normalized -> case normalized of
+                                      Right n  -> table' n
+                                      Left err -> H.text err
+                      Month      -> case month' of
+                                      Right m  -> table' m
+                                      Left err -> H.text err
                       Weeks      -> case output of
                                       Right output' -> table' output'
                                       Left err      -> H.text err
 
   where input      = switchEither "Error: Parsing CSV failed!" $ runParser s excelParsers.file
         parsed     = input >>= parsedFileToJobs
+        normalized = parsed >>= processMonth' >>> pure
+        month'     = parsed >>= processMonth >>> pure
         output     = parsed >>= processJobs (toInt i) >>> pure
-        normalized = parsed >>= processMonth >>> pure
 
 data Weekday = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday
 
-toString :: Weekday -> String
-toString Monday = "Monday"
-toString Tuesday = "Tuesday"
-toString Wednesday = "Wednesday"
-toString Thursday = "Thursday"
-toString Friday = "Friday"
-toString Saturday = "Saturday"
-toString Sunday = "Sunday"
+instance showWeekday :: Show Weekday where
+  show Monday    = "Monday"
+  show Tuesday   = "Tuesday"
+  show Wednesday = "Wednesday"
+  show Thursday  = "Thursday"
+  show Friday    = "Friday"
+  show Saturday  = "Saturday"
+  show Sunday    = "Sunday"
 
 toInt :: Weekday -> Int
-toInt Monday = 0
-toInt Tuesday = 1
+toInt Monday    = 0
+toInt Tuesday   = 1
 toInt Wednesday = 2
-toInt Thursday = 3
-toInt Friday = 4
-toInt Saturday = 5
-toInt Sunday = 6
+toInt Thursday  = 3
+toInt Friday    = 4
+toInt Saturday  = 5
+toInt Sunday    = 6
 
-data Render = Raw | Month | Weeks
+data Render = Raw | Normalized | Month | Weeks
 
-toString' :: Render -> String
-toString' Raw = "Raw"
-toString' Month = "Month"
-toString' Weeks = "Weeks"
+instance showRender :: Show Render where
+  show Raw        = "Raw"
+  show Normalized = "Normalized"
+  show Month      = "Month (CATS)"
+  show Weeks      = "Weeks (CATS)"
 
 ui2 :: forall e e'. UI e (H.Markup e')
 ui2 = renderInput <$>
       string "Raw Input" "" <*>
-      radioGroup "Output" (Raw :| [Weeks, Month]) toString' <*>
-      radioGroup "First of month" (Monday :| [Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]) toString
+      radioGroup "First of month" (Monday :| [Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]) show <*>
+      radioGroup "Output" (Raw :| [Normalized, Month, Weeks]) show
 
 main :: forall a. Eff ( dom :: DOM, channel :: CHANNEL | a ) Unit
 main = runFlareHTML "controls2" "output2" ui2
