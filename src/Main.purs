@@ -140,8 +140,15 @@ showJob days = showJob' days >>> formatRowForCATS >>> internalExternal
 -- Move formatRowForCATS and internalExternal (using map) into higher level function used by showJobs and this higher
 -- level function just processes header row differently than the remaining rows
 
+-- get showHeaderRow from showHeaderRow' using function composition too.  Can I successively get showJobs from showJobs'
+-- by just composing functions?
+
+formatHeaderForCATS :: List String -> List String
+formatHeaderForCATS = formatRowForCATS >>> (\r -> ("EXTERN" : "INTERN" : Nil) <> r)
+
 showHeaderRow :: List Int -> List String
-showHeaderRow days = ("EXTERN" : "INTERN" : Nil) <> filler <> foldMap (\d -> "" : show d : Nil) days
+-- showHeaderRow days = ("EXTERN" : "INTERN" : Nil) <> filler <> foldMap (\d -> "" : show d : Nil) days
+showHeaderRow = showHeaderRow' >>> formatHeaderForCATS
 
 showHeaderRow' :: List Int -> List String
 showHeaderRow' days = ("" : Nil) <> foldMap (\d -> show d : Nil) days
