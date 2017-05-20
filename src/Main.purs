@@ -138,12 +138,11 @@ showJob :: List Int -> Job -> List String
 showJob days = showJob' days >>> formatRowForCATS >>> internalExternal
 
 -- Move formatRowForCATS and internalExternal (using map) into higher level function used by showJobs and this higher
--- level function just processes header row differently than the remaining rows
+-- level function just processes header row differently than the remaining rows.  Can I successively get showJobs from
+-- showJobs' by just composing functions?
 
--- get showHeaderRow from showHeaderRow' using function composition too.  Can I successively get showJobs from showJobs'
--- by just composing functions?
-
--- Fixme: in formatHeaderForCATS, need to take away (ignore) first element and then replace by EXTERN and INTERN
+showHeaderRow' :: List Int -> List String
+showHeaderRow' days = ("" : Nil) <> foldMap (\d -> show d : Nil) days
 
 prefixHeader :: List String -> List String
 prefixHeader (c : cs) = ("EXTERN" : "INTERN" : Nil) <> cs
@@ -151,9 +150,6 @@ prefixHeader Nil = Nil
 
 showHeaderRow :: List Int -> List String
 showHeaderRow = showHeaderRow' >>> formatRowForCATS >>> prefixHeader
-
-showHeaderRow' :: List Int -> List String
-showHeaderRow' days = ("" : Nil) <> foldMap (\d -> show d : Nil) days
 
 -- insert blank line every six rows (CATS only lets me add six lines at a time)
 
