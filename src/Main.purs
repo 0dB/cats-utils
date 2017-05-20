@@ -143,12 +143,14 @@ showJob days = showJob' days >>> formatRowForCATS >>> internalExternal
 -- get showHeaderRow from showHeaderRow' using function composition too.  Can I successively get showJobs from showJobs'
 -- by just composing functions?
 
-formatHeaderForCATS :: List String -> List String
-formatHeaderForCATS = formatRowForCATS >>> (\r -> ("EXTERN" : "INTERN" : Nil) <> r)
+-- Fixme: in formatHeaderForCATS, need to take away (ignore) first element and then replace by EXTERN and INTERN
+
+prefixHeader :: List String -> List String
+prefixHeader (c : cs) = ("EXTERN" : "INTERN" : Nil) <> cs
+prefixHeader Nil = Nil
 
 showHeaderRow :: List Int -> List String
--- showHeaderRow days = ("EXTERN" : "INTERN" : Nil) <> filler <> foldMap (\d -> "" : show d : Nil) days
-showHeaderRow = showHeaderRow' >>> formatHeaderForCATS
+showHeaderRow = showHeaderRow' >>> formatRowForCATS >>> prefixHeader
 
 showHeaderRow' :: List Int -> List String
 showHeaderRow' days = ("" : Nil) <> foldMap (\d -> show d : Nil) days
