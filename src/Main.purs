@@ -118,18 +118,27 @@ goodJob (Job { job }) = isNothing (elemIndex job badjobs)
 
 filler = ("" : "" : "" : "" : Nil) :: List String
 
-showJob :: List Int -> Job -> List String
-showJob days (Job { job, efforts }) = job' <> filler <> foldMap (\d -> "" : showEffort d : Nil) days
+internalExternal :: List String -> List String
+internalExternal (job : efforts) = job' <> efforts
   where job' = case S.take 1 job == "S" of
                  true  -> ("" : job : Nil)
                  false -> (job : "" : Nil)
-        showEffort :: Int -> String
-        showEffort day = fromMaybe "" (M.lookup day efforts)
+internalExternal Nil = Nil
+
+formatRowForCATS :: List String -> List String
+formatRowForCATS (job : efforts) = (job : Nil) <> filler <> foldMap (\e -> "" : e : Nil) efforts
+formatRowForCATS j = j
 
 showJob' :: List Int -> Job -> List String
-showJob' days (Job { job, efforts }) = (job : Nil) <> foldMap (\d -> showEffort d : Nil) days
+showJob' days (Job { job, efforts }) = job : foldMap (\d -> showEffort d : Nil) days
   where showEffort :: Int -> String
         showEffort day = fromMaybe "" (M.lookup day efforts)
+
+showJob :: List Int -> Job -> List String
+showJob days = showJob' days >>> formatRowForCATS >>> internalExternal
+
+-- Move formatRowForCATS and internalExternal (using map) into higher level function used by showJobs and this higher
+-- level function just processes header row differently than the remaining rows
 
 showHeaderRow :: List Int -> List String
 showHeaderRow days = ("EXTERN" : "INTERN" : Nil) <> filler <> foldMap (\d -> "" : show d : Nil) days
