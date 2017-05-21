@@ -38,9 +38,6 @@ groupBy :: forall a. Int -> List (List a) -> List a -> List (List a)
 groupBy n acc Nil = reverse acc
 groupBy n acc r = groupBy n (take n r : acc) (drop n r)
 
-weeks :: forall a. List a -> List (List a)
-weeks m = groupBy daysInWeek Nil m
-
 fromGermanFloat :: String -> Either String Number
 fromGermanFloat g = case S.split (S.Pattern ",") g of
                       [""]    -> Right 0.0 -- the ".0" will be filtered out later in `toGermanFloat`
@@ -174,18 +171,6 @@ groupFilterShow js r = showJobs r $ filter nonZeroP $ filterDateRange r $ js
 groupFilterShow' :: List Job -> List Int -> List (List String)
 groupFilterShow' js r = showJobs' r js
 
-processWeeks :: Int -> List Job -> List (List (List String))
-processWeeks offset jobs = map (groupFilterShow jobs) $ weeks (month offset)
-
-processMonth :: List Job -> List (List (List String))
-processMonth jobs = map (groupFilterShow (filter goodJob jobs)) $ (month 0) : Nil
-
-processMonth' :: List Job -> List (List (List String))
-processMonth' jobs = map (groupFilterShow' jobs) $ (month 0) : Nil
-
-processJobs :: Int -> List Job -> List (List (List String))
-processJobs offset = processWeeks offset <<< filter goodJob
-
 -- convert from `Either ParseError` to `Either String`
 
 switchEither :: forall a b. String -> Either a b -> Either String b
@@ -224,9 +209,12 @@ renderInput s i r = H.h2 (H.text "Output") <>
 
   where input      = switchEither "Error: Parsing CSV failed!" $ runParser s excelParsers.file
         parsed     = input >>= parsedFileToJobs
-        normalized = parsed >>= processMonth' >>> pure
-        month'     = parsed >>= processMonth >>> pure
-        output     = parsed >>= processJobs (toInt i) >>> pure
+        normalized = parsed >>= (\jobs -> let groups = groupBy 31 Nil (month 0) in
+                                          map (groupFilterShow' jobs) groups) >>> pure
+        month'     = parsed >>= filter goodJob >>> (\jobs -> let groups = groupBy 31 Nil (month 0) in
+                                                             map (groupFilterShow jobs) groups) >>> pure
+        output     = parsed >>= filter goodJob >>> (\jobs -> let groups = groupBy 7 Nil (month (toInt i)) in
+                                                             map (groupFilterShow jobs) groups) >>> pure
 
 data Weekday = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday
 
