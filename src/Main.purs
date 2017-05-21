@@ -193,26 +193,25 @@ table' ts = H.table $ foldMap table ts
 
 renderInput :: forall e. String -> Weekday -> Render -> H.Markup e
 renderInput s i r = H.h2 (H.text "Output") <>
-                    case r of
-                      Raw        -> case input of
-                                      Right input' -> table' (input' : Nil)
-                                      Left err     -> H.text err
-                      Normalized -> case normalized of
-                                      Right n  -> table' n
-                                      Left err -> H.text err
-                      Month      -> case month' of
-                                      Right m  -> table' m
-                                      Left err -> H.text err
-                      Weeks      -> case output of
-                                      Right output' -> table' output'
-                                      Left err      -> H.text err
+                    case r of Raw    -> case input of
+                                          Right input' -> table' (input' : Nil)
+                                          Left err     -> H.text err
+                              Month  -> case normalized of
+                                          Right n  -> table' n
+                                          Left err -> H.text err
+                              Weeks  -> case month' of
+                                          Right m  -> table' m
+                                          Left err -> H.text err
+                              WeeksC -> case output of
+                                          Right output' -> table' output'
+                                          Left err      -> H.text err
 
   where input      = switchEither "Error: Parsing CSV failed!" $ runParser s excelParsers.file
         parsed     = input >>= parsedFileToJobs
         normalized = parsed >>= (\jobs -> let groups = groupBy 31 Nil (month 0) in
                                           map (groupFilterShow' jobs) groups) >>> pure
-        month'     = parsed >>= filter goodJob >>> (\jobs -> let groups = groupBy 31 Nil (month 0) in
-                                                             map (groupFilterShow jobs) groups) >>> pure
+        month'     = parsed >>= filter goodJob >>> (\jobs -> let groups = groupBy 7 Nil (month (toInt i)) in
+                                                             map (groupFilterShow' jobs) groups) >>> pure
         output     = parsed >>= filter goodJob >>> (\jobs -> let groups = groupBy 7 Nil (month (toInt i)) in
                                                              map (groupFilterShow jobs) groups) >>> pure
 
@@ -236,19 +235,19 @@ toInt Friday    = 4
 toInt Saturday  = 5
 toInt Sunday    = 6
 
-data Render = Raw | Normalized | Month | Weeks
+data Render = Raw | Month | Weeks | WeeksC
 
 instance showRender :: Show Render where
   show Raw        = "Raw"
-  show Normalized = "Normalized"
-  show Month      = "Month (CATS)"
-  show Weeks      = "Weeks (CATS)"
+  show Month      = "Month"
+  show Weeks      = "Weeks"
+  show WeeksC     = "Weeks (CATS)"
 
 ui2 :: forall e e'. UI e (H.Markup e')
 ui2 = renderInput <$>
       string "Raw Input" "" <*>
       radioGroup "First of month" (Monday :| [Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]) show <*>
-      radioGroup "Output" (Raw :| [Normalized, Month, Weeks]) show
+      radioGroup "Output" (Raw :| [Month, Weeks, WeeksC]) show
 
 main :: forall a. Eff ( dom :: DOM, channel :: CHANNEL | a ) Unit
 main = runFlareHTML "controls2" "output2" ui2
