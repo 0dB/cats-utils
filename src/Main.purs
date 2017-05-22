@@ -5,7 +5,7 @@
 
 module Main where
 
-import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<=<), (<<<), show, (>>=), (*), (/), (>>>), (<$>), (<*>), discard)
+import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<=<), (<<<), show, (>>=), (*), (/), (>>>), (<$>), (<*>), discard, otherwise)
 import Control.Monad.Eff (Eff)
 import Text.Parsing.CSV (Parsers, makeParsers)
 import Text.Parsing.Parser (runParser)
@@ -24,7 +24,7 @@ import DOM (DOM)
 import Signal.Channel (CHANNEL)
 import Text.Smolder.HTML (table, td, tr, th, h2) as H
 import Text.Smolder.Markup (Markup, text) as H
-import Flare (UI, string, radioGroup)
+import Flare (UI, string, radioGroup, intSlider)
 import Flare.Smolder (runFlareHTML)
 
 badjobs = ("INTERFLEX" : "D1CS" : "ORGA" : "AZ" : "Sonstiges" : Nil) :: List String
@@ -194,23 +194,24 @@ table rs = mempty
 table' :: forall e. List (List (List String)) -> H.Markup e
 table' ts = H.table $ foldMap table ts
 
-renderInput :: forall e. String -> Weekday -> Render -> H.Markup e
+renderInput :: forall e. String -> Weekday -> Int -> H.Markup e
 renderInput s i r = H.h2 (H.text "Output") <>
-                    case r of Raw    -> case raw of
-                                          Right input' -> table' (input' : Nil)
-                                          Left err     -> H.text err
-                              Month  -> case month' of
-                                          Right n  -> table' n
-                                          Left err -> H.text err
-                              MonthS -> case monthS of
-                                          Right m  -> table' m
-                                          Left err -> H.text err
-                              Weeks  -> case weeks of
-                                          Right m  -> table' m
-                                          Left err -> H.text err
-                              WeeksC -> case weeksC of
-                                          Right output' -> table' output'
-                                          Left err      -> H.text err
+                    case r of 0 -> case raw of
+                                     Right input' -> table' (input' : Nil)
+                                     Left err     -> H.text err
+                              1 -> case month' of
+                                     Right n  -> table' n
+                                     Left err -> H.text err
+                              2 -> case monthS of
+                                     Right m  -> table' m
+                                     Left err -> H.text err
+                              3 -> case weeks of
+                                     Right m  -> table' m
+                                     Left err -> H.text err
+                              4 -> case weeksC of
+                                     Right output' -> table' output'
+                                     Left err      -> H.text err
+                              otherwise -> mempty
 
   where raw        = switchEither "Error: Parsing CSV failed!" $ runParser s excelParsers.file
         parsed     = raw    >>= parsedFileToJobs
@@ -243,20 +244,11 @@ toInt Friday    = 4
 toInt Saturday  = 5
 toInt Sunday    = 6
 
-data Render = Raw | Month | MonthS | Weeks | WeeksC
-
-instance showRender :: Show Render where
-  show Raw        = "Raw"
-  show Month      = "Month"
-  show MonthS      = "Month (Staggered)"
-  show Weeks      = "Weeks"
-  show WeeksC     = "Weeks (CATS)"
-
 ui2 :: forall e e'. UI e (H.Markup e')
 ui2 = renderInput <$>
       string "Raw Input" "" <*>
       radioGroup "First of month" (Monday :| [Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]) show <*>
-      radioGroup "Output" (Raw :| [Month, MonthS, Weeks, WeeksC]) show
+      intSlider "Morph" 0 4 0
 
 main :: forall a. Eff ( dom :: DOM, channel :: CHANNEL | a ) Unit
 main = runFlareHTML "controls2" "output2" ui2
