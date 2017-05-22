@@ -172,7 +172,7 @@ groupFilterShowStaggered :: List Job -> List Int -> List (List String)
 groupFilterShowStaggered js r = showJobs' (range 1 31) $ filter nonZeroP $ filterDateRange r $ js
 
 groupFilterShowNoFilter :: List Job -> List Int -> List (List String)
-groupFilterShowNoFilter js r = showJobs' r $ filter nonZeroP $ js
+groupFilterShowNoFilter js r = showJobs' r $ filter nonZeroP $ filterDateRange r $ js
 
 -- convert from `Either ParseError` to `Either String`
 
@@ -196,31 +196,31 @@ table' ts = H.table $ foldMap table ts
 
 renderInput :: forall e. String -> Weekday -> Render -> H.Markup e
 renderInput s i r = H.h2 (H.text "Output") <>
-                    case r of Raw    -> case input of
+                    case r of Raw    -> case raw of
                                           Right input' -> table' (input' : Nil)
                                           Left err     -> H.text err
-                              Month  -> case normalized of
+                              Month  -> case month' of
                                           Right n  -> table' n
                                           Left err -> H.text err
                               MonthS -> case monthS of
                                           Right m  -> table' m
                                           Left err -> H.text err
-                              Weeks  -> case month' of
+                              Weeks  -> case weeks of
                                           Right m  -> table' m
                                           Left err -> H.text err
-                              WeeksC -> case output of
+                              WeeksC -> case weeksC of
                                           Right output' -> table' output'
                                           Left err      -> H.text err
 
-  where input      = switchEither "Error: Parsing CSV failed!" $ runParser s excelParsers.file
-        parsed     = input >>= parsedFileToJobs
-        normalized = parsed >>= (\jobs -> let groups = groupBy 31 Nil (month 0) in
-                                          map (groupFilterShowNoFilter jobs) groups) >>> pure
+  where raw        = switchEither "Error: Parsing CSV failed!" $ runParser s excelParsers.file
+        parsed     = raw    >>= parsedFileToJobs
+        month'     = parsed >>=                    (\jobs -> let groups = groupBy 31 Nil (month 0) in
+                                                             map (groupFilterShowNoFilter jobs) groups) >>> pure
         monthS     = parsed >>= filter goodJob >>> (\jobs -> let groups = groupBy 7 Nil (month (toInt i)) in
                                                              map (groupFilterShowStaggered jobs) groups) >>> pure
-        month'     = parsed >>= filter goodJob >>> (\jobs -> let groups = groupBy 7 Nil (month (toInt i)) in
+        weeks      = parsed >>= filter goodJob >>> (\jobs -> let groups = groupBy 7 Nil (month (toInt i)) in
                                                              map (groupFilterShowNoFilter jobs) groups) >>> pure
-        output     = parsed >>= filter goodJob >>> (\jobs -> let groups = groupBy 7 Nil (month (toInt i)) in
+        weeksC     = parsed >>= filter goodJob >>> (\jobs -> let groups = groupBy 7 Nil (month (toInt i)) in
                                                              map (groupFilterShow jobs) groups) >>> pure
 
 data Weekday = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday
