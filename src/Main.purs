@@ -168,8 +168,11 @@ showJobs' days = (:) (showHeaderRow' days) <<<
 groupFilterShow :: List Job -> List Int -> List (List String)
 groupFilterShow js r = showJobs r $ filter nonZeroP $ filterDateRange r $ js
 
-groupFilterShow' :: List Job -> List Int -> List (List String)
-groupFilterShow' js r = showJobs' r js
+groupFilterShowStaggered :: List Job -> List Int -> List (List String)
+groupFilterShowStaggered js r = showJobs' (range 1 31) $ filter nonZeroP $ filterDateRange r $ js
+
+groupFilterShowNoFilter :: List Job -> List Int -> List (List String)
+groupFilterShowNoFilter js r = showJobs' r $ filter nonZeroP $ js
 
 -- convert from `Either ParseError` to `Either String`
 
@@ -199,6 +202,9 @@ renderInput s i r = H.h2 (H.text "Output") <>
                               Month  -> case normalized of
                                           Right n  -> table' n
                                           Left err -> H.text err
+                              MonthS -> case monthS of
+                                          Right m  -> table' m
+                                          Left err -> H.text err
                               Weeks  -> case month' of
                                           Right m  -> table' m
                                           Left err -> H.text err
@@ -209,9 +215,11 @@ renderInput s i r = H.h2 (H.text "Output") <>
   where input      = switchEither "Error: Parsing CSV failed!" $ runParser s excelParsers.file
         parsed     = input >>= parsedFileToJobs
         normalized = parsed >>= (\jobs -> let groups = groupBy 31 Nil (month 0) in
-                                          map (groupFilterShow' jobs) groups) >>> pure
+                                          map (groupFilterShowNoFilter jobs) groups) >>> pure
+        monthS     = parsed >>= filter goodJob >>> (\jobs -> let groups = groupBy 7 Nil (month (toInt i)) in
+                                                             map (groupFilterShowStaggered jobs) groups) >>> pure
         month'     = parsed >>= filter goodJob >>> (\jobs -> let groups = groupBy 7 Nil (month (toInt i)) in
-                                                             map (groupFilterShow' jobs) groups) >>> pure
+                                                             map (groupFilterShowNoFilter jobs) groups) >>> pure
         output     = parsed >>= filter goodJob >>> (\jobs -> let groups = groupBy 7 Nil (month (toInt i)) in
                                                              map (groupFilterShow jobs) groups) >>> pure
 
@@ -235,11 +243,12 @@ toInt Friday    = 4
 toInt Saturday  = 5
 toInt Sunday    = 6
 
-data Render = Raw | Month | Weeks | WeeksC
+data Render = Raw | Month | MonthS | Weeks | WeeksC
 
 instance showRender :: Show Render where
   show Raw        = "Raw"
   show Month      = "Month"
+  show MonthS      = "Month (Staggered)"
   show Weeks      = "Weeks"
   show WeeksC     = "Weeks (CATS)"
 
@@ -247,7 +256,7 @@ ui2 :: forall e e'. UI e (H.Markup e')
 ui2 = renderInput <$>
       string "Raw Input" "" <*>
       radioGroup "First of month" (Monday :| [Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]) show <*>
-      radioGroup "Output" (Raw :| [Month, Weeks, WeeksC]) show
+      radioGroup "Output" (Raw :| [Month, MonthS, Weeks, WeeksC]) show
 
 main :: forall a. Eff ( dom :: DOM, channel :: CHANNEL | a ) Unit
 main = runFlareHTML "controls2" "output2" ui2
