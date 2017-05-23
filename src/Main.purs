@@ -113,7 +113,7 @@ nonZeroP (Job { efforts }) = or $ map ((/=) "0") $ M.values efforts
 goodJob :: Job -> Boolean
 goodJob (Job { job }) = isNothing (elemIndex job badjobs)
 
-filler = ("" : "" : "" : "" : Nil) :: List String
+filler = ("" : "" : Nil) :: List String
 
 internalExternal :: List String -> List String
 internalExternal (job : efforts) = job' <> efforts
@@ -150,7 +150,7 @@ showHeaderRow = showHeaderRow' >>> formatRowForCATS >>> prefixHeader
 
 -- insert blank line every six rows (CATS only lets me add six lines at a time)
 
-emptyRow = (("" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : Nil) : Nil)  :: List (List String)
+emptyRow = (("" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : Nil) : Nil)  :: List (List String)
 
 showJobs :: List Int -> List Job -> List (List String)
 showJobs days = (:) (showHeaderRow days) <<<
