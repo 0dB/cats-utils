@@ -75,9 +75,8 @@ parsedFileToJobs ((_ : dates) : joblines) = readDates dates >>= readJobs (filter
         readJobs js ds = sequence $ map (readJob ds) js
 
         readDay :: String -> Either String Int
-        readDay d = case fromString d of
-                      Just date -> Right date
-                      Nothing   -> Left ("Error: Could not read date " <> d <> ".")
+        readDay d | Just date <- fromString d = Right date
+                  | otherwise                 = Left ("Error: Could not read date " <> d <> ".")
 
         readJob :: List Int -> List String -> Either String Job
         readJob _   Nil          = Left "Error: No input line."
