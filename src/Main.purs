@@ -24,7 +24,7 @@ import DOM (DOM)
 import Signal.Channel (CHANNEL)
 import Text.Smolder.HTML (table, td, tr, th, h2) as H
 import Text.Smolder.Markup (Markup, text) as H
-import Flare (UI, string, radioGroup, intSlider)
+import Flare (UI, textarea, radioGroup, intSlider)
 import Flare.Smolder (runFlareHTML)
 
 badjobs = ("INTERFLEX" : "D1CS" : "ORGA" : "AZ" : "Sonstiges" : Nil) :: List String
@@ -180,7 +180,7 @@ switchEither text = either (const (Left text)) Right
 
 -- TODO: How to get copy and paste to work without using " " to recognize EOL?
 
-excelParsers = makeParsers '\'' "\t" " " :: Parsers String
+excelParsers = makeParsers '\'' "\t" "\n" :: Parsers String
 
 table :: forall e. List (List String) -> H.Markup e
 table (h : rs) = go h <> foldMap row rs
@@ -245,7 +245,7 @@ toInt Sunday    = 6
 
 ui2 :: forall e e'. UI e (H.Markup e')
 ui2 = renderInput <$>
-      string "Raw Input" "" <*>
+      textarea "Raw Input" "" <*>
       radioGroup "First of month" (Monday :| [Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]) show <*>
       intSlider "Morph" 0 4 0
 
