@@ -5,7 +5,7 @@
 
 module Main where
 
-import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<=<), (<<<), show, (>>=), (*), (/), (>>>), (<$>), (<*>), discard, otherwise)
+import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<=<), (<<<), show, (>>=), (*), (/), (>>>), (<$>), (<*>), otherwise)
 import Control.Monad.Eff (Eff)
 import Text.Parsing.CSV (Parsers, makeParsers)
 import Text.Parsing.Parser (runParser)
@@ -226,6 +226,7 @@ renderInput s i r = H.h2 (H.text "Output") <>
 data Weekday = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday
 
 instance showWeekday :: Show Weekday where
+  show :: Weekday -> String
   show Monday    = "Monday"
   show Tuesday   = "Tuesday"
   show Wednesday = "Wednesday"
