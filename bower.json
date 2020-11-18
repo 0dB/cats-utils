@@ -11,6 +11,7 @@
     "purescript-prelude": "^3.0.0",
     "purescript-node-fs": "^4.0.0",
     "purescript-csv": "^2.0.0",
-    "purescript-console": "^3.0.0"
+    "purescript-console": "^3.0.0",
+    "purescript-assert": "^3.0.0"
   }
 }

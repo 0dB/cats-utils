@@ -3,6 +3,9 @@
 
 -- create HTML with `pulp build -O -t main.js`
 
+-- TODO 2020-11 Write test case and then add data type for one row. Then extend by one more field in the
+-- row.
+
 module Main where
 
 import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<=<), (<<<), show, (>>=), (*), (/), (>>>), (<$>), (<*>), otherwise)
@@ -22,8 +25,9 @@ import Data.Monoid (mempty)
 import Data.NonEmpty ((:|))
 import DOM (DOM)
 import Signal.Channel (CHANNEL)
-import Text.Smolder.HTML (table, td, tr, th, h2) as H
-import Text.Smolder.Markup (Markup, text) as H
+import Text.Smolder.HTML (table, td, tr, th, h2) as HTML
+import Text.Smolder.Markup (Markup, text) as MU
+import Text.Smolder.Renderer.String (render) as TSRS
 import Flare (UI, textarea, radioGroup, intSlider)
 import Flare.Smolder (runFlareHTML)
 
@@ -33,6 +37,8 @@ month :: Int -> List Int
 month offset = range (1 - offset) 31
 
 daysInWeek = 7 :: Int
+
+-- Group a list into groups of certain size, returning list of lists
 
 groupBy :: forall a. Int -> List (List a) -> List a -> List (List a)
 groupBy n acc Nil = reverse acc
@@ -121,6 +127,9 @@ internalExternal (job : efforts) = job' <> efforts
                  false -> (job : "" : Nil)
 internalExternal Nil = Nil
 
+-- TODO 2020-11 Make a type out of this so that I see what "fields" CATS expects and don't send too few or
+-- too many fields.
+
 formatRowForCATS :: List String -> List String
 formatRowForCATS (job : efforts) = (job : Nil) <> filler <> foldMap (\e -> "" : e : Nil) efforts
 formatRowForCATS j = j
@@ -129,6 +138,13 @@ showJob' :: List Int -> Job -> List String
 showJob' days (Job { job, efforts }) = job : foldMap (\d -> showEffort d : Nil) days
   where showEffort :: Int -> String
         showEffort day = fromMaybe "" (M.lookup day efforts)
+
+-- PureScript uses <<< rather than . for right-to-left composition of functions. This is to avoid a
+-- syntactic ambiguity with . being used for property access and name qualification. There is also a
+-- corresponding >>> operator for left-to-right composition.
+-- https://github.com/purescript/documentation/blob/master/language/Differences-from-Haskell.md
+-- (f <<< g) x = f (g x)
+-- https://stackoverflow.com/questions/29881695/what-does-the-triple-less-than-sign-do-in-purescript
 
 showJob :: List Int -> Job -> List String
 showJob days = showJob' days >>> formatRowForCATS >>> internalExternal
@@ -148,6 +164,7 @@ showHeaderRow :: List Int -> List String
 showHeaderRow = showHeaderRow' >>> formatRowForCATS >>> prefixHeader
 
 -- insert blank line every six rows (CATS only lets me add six lines at a time)
+-- TODO 2020-11 Make this safer by introducing type with certain amount of fields (maybe even named)
 
 emptyRow = (("" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : Nil) : Nil)  :: List (List String)
 
@@ -182,34 +199,34 @@ switchEither text = either (const (Left text)) Right
 
 excelParsers = makeParsers '\'' "\t" "\n" :: Parsers String
 
-table :: forall e. List (List String) -> H.Markup e
+table :: forall e. List (List String) -> MU.Markup e
 table (h : rs) = go h <> foldMap row rs
-  where row r = H.tr $ foldMap cell r
-        cell i = H.td (H.text i)
-        cell' i = H.th (H.text i)
-        go h' = H.tr $ foldMap cell' h'
+  where row r = HTML.tr $ foldMap cell r
+        cell i = HTML.td (MU.text i)
+        cell' i = HTML.th (MU.text i)
+        go h' = HTML.tr $ foldMap cell' h'
 table rs = mempty
 
-table' :: forall e. List (List (List String)) -> H.Markup e
-table' ts = H.table $ foldMap table ts
+table' :: forall e. List (List (List String)) -> MU.Markup e
+table' ts = HTML.table $ foldMap table ts
 
-renderInput :: forall e. String -> Weekday -> Int -> H.Markup e
-renderInput s i r = H.h2 (H.text "Output") <>
+renderInput :: forall e. Weekday -> Int -> String -> MU.Markup e
+renderInput i r s = HTML.h2 (MU.text "Output") <>
                     case r of 0 -> case raw of
                                      Right input' -> table' (input' : Nil)
-                                     Left err     -> H.text err
+                                     Left err     -> MU.text err
                               1 -> case month' of
-                                     Right n  -> table' n
-                                     Left err -> H.text err
+                                     Right m  -> table' m
+                                     Left err -> MU.text err
                               2 -> case monthS of
                                      Right m  -> table' m
-                                     Left err -> H.text err
+                                     Left err -> MU.text err
                               3 -> case weeks of
-                                     Right m  -> table' m
-                                     Left err -> H.text err
+                                     Right w  -> table' w
+                                     Left err -> MU.text err
                               4 -> case weeksC of
-                                     Right output' -> table' output'
-                                     Left err      -> H.text err
+                                     Right w  -> table' w
+                                     Left err -> MU.text err
                               otherwise -> mempty
 
   where raw        = switchEither "Error: Parsing CSV failed!" $ runParser s excelParsers.file
@@ -224,6 +241,9 @@ renderInput s i r = H.h2 (H.text "Output") <>
                                                              map (groupFilterShow jobs) groups) >>> pure
 
 data Weekday = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday
+
+renderToHTML :: String -> String
+renderToHTML = TSRS.render <<< renderInput Monday 4
 
 instance showWeekday :: Show Weekday where
   show :: Weekday -> String
@@ -244,11 +264,11 @@ toInt Friday    = 4
 toInt Saturday  = 5
 toInt Sunday    = 6
 
-ui2 :: forall e e'. UI e (H.Markup e')
-ui2 = renderInput <$>
-      textarea "Raw Input" "" <*>
-      radioGroup "First of month" (Monday :| [Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]) show <*>
-      intSlider "Morph" 0 4 0
+ui :: forall e e'. UI e (MU.Markup e')
+ui = renderInput <$>
+     radioGroup "First of month" (Monday :| [Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]) show <*>
+     intSlider "Morph" 0 4 0  <*>
+     textarea "Raw Input" ""
 
 main :: forall a. Eff ( dom :: DOM, channel :: CHANNEL | a ) Unit
-main = runFlareHTML "controls2" "output2" ui2
+main = runFlareHTML "controls" "output" ui
