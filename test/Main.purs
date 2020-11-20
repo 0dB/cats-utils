@@ -18,6 +18,9 @@ import Data.List (List(..), reverse, (:))
 -- from https://discourse.purescript.org/t/issue-with-simple-code-from-purescript-by-example/231
 derive instance eqXHours :: Eq XHours
 
+instance showXHours :: Show XHours where
+  show (XHours x) = x.day <> " " <> x.task <> " " <> show (x.hours)
+
 -- traverse_ (the version with underscore) throws away return value
 
 -- for splitting "sonstiges"
@@ -69,13 +72,14 @@ spread _                  _                  acc                  = reverse acc
 spread' :: List SHours -> List JHours -> List XHours
 spread' a b = spread a b Nil
 
-
 main :: forall e. Eff (fs :: FS, exception :: EXCEPTION, console :: CONSOLE, assert :: ASSERT | e) Unit
 main =
   do log ("Test: ")
      input <- readTextFile UTF8 ("test/input01.txt")
      let output = (Main.renderToHTML input) <> "\n"
+         output2 = spread' testS testJ1
      writeTextFile UTF8 ("test/output01.html") output
      reference <- readTextFile UTF8 ("test/reference01.html")
+     log $ show output2
      assert (reference == output)
-     assert (spread' testS testJ1 == testX1)
+     assert (output2 == testX1)
