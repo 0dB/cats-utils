@@ -8,7 +8,7 @@
 
 module Main (JHours(..), XHours(..), SHours(..), spread', renderToHTML) where
 
-import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<=<), (<<<), show, (>>=), (*), (/), (>>>), (<$>), (<*>), otherwise, (<=), min)
+import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<=<), (<<<), show, (>>=), (*), (/), (>>>), (<$>), (<*>), otherwise, (<=), min ,(+))
 import Control.Monad.Eff (Eff)
 import Text.Parsing.CSV (Parsers, makeParsers)
 import Text.Parsing.Parser (runParser)
@@ -17,7 +17,7 @@ import Data.Map as M
 import Data.Int (fromString, round, toNumber)
 import Data.Maybe (Maybe(..), fromMaybe, maybe, isNothing)
 import Data.Either (Either(..), either)
-import Data.Traversable (sequence, or, foldMap, fold)
+import Data.Traversable (sequence, or, foldMap, fold, foldr)
 import Data.String (take, split, Pattern(..)) as S
 import Global as G
 
@@ -58,6 +58,8 @@ fromGermanFloat g = case S.split (S.Pattern ",") g of
                                    _      , _       -> Left ("Error: Could not read number from " <> p <> "," <> s <> ".")
                       _       -> Left ("Error: Could not read hour from " <> g <> ".")
 
+-- turn 4.0 into 4,0
+
 toGermanFloat :: forall a. (Show a) => a -> Either String String
 toGermanFloat n = case S.split (S.Pattern ".") (show n) of
                     [p]      -> Right p -- not expecting this case anymore (will be getting `4.0` instead of `4`)
@@ -67,6 +69,9 @@ toGermanFloat n = case S.split (S.Pattern ".") (show n) of
 
 round100 :: Number -> Number
 round100 n = toNumber (round (n * 100.0)) / 100.0
+
+-- Create list of jobs where each job is the name of a project or account and has a map of date and hours
+-- (efforts)
 
 type Efforts = M.Map Int String
 
@@ -197,7 +202,35 @@ groupFilterShowNoFilter js r = showJobs' r $ filter nonZeroP $ filterDateRange r
 switchEither :: forall a b. String -> Either a b -> Either String b
 switchEither text = either (const (Left text)) Right
 
--- for splitting "sonstiges"
+-- for splitting "Sonstiges"
+
+-- Idea. Filter list of jobs by "Sonstiges", turn each hit (even though it should only be one, but you never
+-- know) from Job to List of SHours, get weighting from the "good jobs", turn into JHours, call `spread`
+-- for each hit, turn result from XHours to Job again and add to the list of jobs. They will show up as a
+-- separate row in the output. Consider adding comment to output, in the field after the account number.
+
+jobToSHours :: Job -> List SHours
+jobToSHours (Job { efforts }) = Nil
+
+jobToJHours :: Job -> List JHours
+jobToJHours j = Nil
+
+xHoursToJob :: List XHours -> Job
+xHoursToJob x = Job { job : "X"
+                    , efforts : M.singleton 0 "X" }
+
+-- XXXXXXXXXXXXXX
+
+nameThisFunction :: List Job -> List (List SHours)
+nameThisFunction js = map jobToSHours $ filter (\(Job {job}) -> job == "Sonstiges") js
+
+totalEffortsOfJob :: Job -> Either String Number
+totalEffortsOfJob (Job { efforts }) = do es <- sequence $ map fromGermanFloat (M.values efforts)
+                                         pure $ foldr (\x y -> x + y) 0.0 es
+
+totalEfforts :: List Job -> Either String Number
+totalEfforts js = do efforts <- sequence $ map totalEffortsOfJob $ filter goodJob js
+                     pure $ foldr (\x y -> x + y) 0.0 efforts
 
 derive instance eqXHours :: Eq XHours
 
@@ -221,6 +254,7 @@ spread (SHours s : srest) (JHours j : jrest) acc | s.hours <= 0.0 = spread srest
                                                                            (JHours j { hours = j.hours - x } : jrest)
                                                                            (XHours { day : s.day, task : j.task, hours : x } : acc)
                                                                       where x = min s.hours j.hours
+
 spread _                  _                  acc                  = reverse acc
 
 spread' :: List SHours -> List JHours -> List XHours
@@ -240,6 +274,8 @@ table rs = mempty
 
 table' :: forall e. List (List (List String)) -> MU.Markup e
 table' ts = HTML.table $ foldMap table ts
+
+-- third parameter is input field
 
 renderInput :: forall e. Weekday -> Int -> String -> MU.Markup e
 renderInput i r s = HTML.h2 (MU.text "Output") <>
@@ -261,7 +297,7 @@ renderInput i r s = HTML.h2 (MU.text "Output") <>
                               otherwise -> mempty
 
   where raw        = switchEither "Error: Parsing CSV failed!" $ runParser s excelParsers.file
-        parsed     = raw    >>= parsedFileToJobs
+        parsed     = raw    >>= parsedFileToJobs -- this is where to also spread out "Sonstiges" into "good" jobs
         month'     = parsed >>=                    (\jobs -> let groups = groupBy 31 Nil (month 0) in
                                                              map (groupFilterShowNoFilter jobs) groups) >>> pure
         monthS     = parsed >>= filter goodJob >>> (\jobs -> let groups = groupBy 7 Nil (month (toInt i)) in
