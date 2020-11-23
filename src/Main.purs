@@ -6,9 +6,9 @@
 -- TODO 2020-11 Write test case and then add data type for one row. Then extend by one more field in the
 -- row.
 
-module Main where
+module Main (JHours(..), XHours(..), SHours(..), spread', renderToHTML) where
 
-import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<=<), (<<<), show, (>>=), (*), (/), (>>>), (<$>), (<*>), otherwise)
+import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<=<), (<<<), show, (>>=), (*), (/), (>>>), (<$>), (<*>), otherwise, (<=), min)
 import Control.Monad.Eff (Eff)
 import Text.Parsing.CSV (Parsers, makeParsers)
 import Text.Parsing.Parser (runParser)
@@ -30,6 +30,8 @@ import Text.Smolder.Markup (Markup, text) as MU
 import Text.Smolder.Renderer.String (render) as TSRS
 import Flare (UI, textarea, radioGroup, intSlider)
 import Flare.Smolder (runFlareHTML)
+
+import Data.Eq
 
 badjobs = ("INTERFLEX" : "D1CS" : "ORGA" : "AZ" : "Sonstiges" : Nil) :: List String
 
@@ -194,6 +196,35 @@ groupFilterShowNoFilter js r = showJobs' r $ filter nonZeroP $ filterDateRange r
 
 switchEither :: forall a b. String -> Either a b -> Either String b
 switchEither text = either (const (Left text)) Right
+
+-- for splitting "sonstiges"
+
+derive instance eqXHours :: Eq XHours
+
+instance showXHours :: Show XHours where
+  show (XHours x) = x.day <> " " <> x.task <> " " <> show (x.hours)
+
+newtype SHours = SHours { day   :: String
+                        , hours :: Number }
+
+newtype JHours = JHours { task  :: String
+                        , hours :: Number }
+
+newtype XHours = XHours { day   :: String
+                        , task  :: String
+                        , hours :: Number }
+
+spread :: List SHours -> List JHours -> List XHours -> List XHours
+spread (SHours s : srest) (JHours j : jrest) acc | s.hours <= 0.0 = spread srest              (JHours j : jrest) acc
+                                                 | j.hours <= 0.0 = spread (SHours s : srest) jrest              acc
+                                                 | otherwise      = spread (SHours s { hours = s.hours - x } : srest)
+                                                                           (JHours j { hours = j.hours - x } : jrest)
+                                                                           (XHours { day : s.day, task : j.task, hours : x } : acc)
+                                                                      where x = min s.hours j.hours
+spread _                  _                  acc                  = reverse acc
+
+spread' :: List SHours -> List JHours -> List XHours
+spread' a b = spread a b Nil
 
 -- TODO: How to get copy and paste to work without using " " to recognize EOL?
 

@@ -1,40 +1,19 @@
 module Test.Main where
 
-import Prelude
--- import Prelude (Unit, bind, discard)
+import Prelude (Unit, bind, discard, show, ($), (<>), (==))
+import Main (JHours(..), SHours(..), XHours(..), renderToHTML, spread')
+import Data.List (List(..), (:))
+
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
-import Test.Assert (assert, ASSERT)
-
--- from ConvertFile.purs
-import Main (renderToHTML) as Main
 import Control.Monad.Eff.Exception (EXCEPTION)
 import Node.FS (FS)
 import Node.FS.Sync (readTextFile, writeTextFile)
-import Node.Encoding (Encoding(..)) -- 2017-02-28 this provides `UTF8` (required since PS update)
+import Node.Encoding (Encoding(..))
 
--- for spread function
-import Data.List (List(..), reverse, (:))
--- from https://discourse.purescript.org/t/issue-with-simple-code-from-purescript-by-example/231
-derive instance eqXHours :: Eq XHours
+import Test.Assert (assert, ASSERT)
 
-instance showXHours :: Show XHours where
-  show (XHours x) = x.day <> " " <> x.task <> " " <> show (x.hours)
-
--- traverse_ (the version with underscore) throws away return value
-
--- for splitting "sonstiges"
--- TODO 2020-11 Move this to own module
-
-newtype SHours = SHours { day   :: String
-                        , hours :: Number }
-
-newtype JHours = JHours { task  :: String
-                        , hours :: Number }
-
-newtype XHours = XHours { day   :: String
-                        , task  :: String
-                        , hours :: Number }
+import Data.Traversable -- (sequence, or, foldMap, fold)
 
 testS :: List SHours
 testS = ( SHours { day : "day 1", hours : 10.0 }
@@ -60,26 +39,14 @@ testJ2 = ( JHours { task : "task 1", hours : 15.0 }
          : JHours { task : "task 3", hours : 15.0 }
          : Nil)
 
-spread :: List SHours -> List JHours -> List XHours -> List XHours
-spread (SHours s : srest) (JHours j : jrest) acc | s.hours <= 0.0 = spread srest              (JHours j : jrest) acc
-                                                 | j.hours <= 0.0 = spread (SHours s : srest) jrest              acc
-                                                 | otherwise      = spread (SHours s { hours = s.hours - x } : srest)
-                                                                           (JHours j { hours = j.hours - x } : jrest)
-                                                                           (XHours { day : s.day, task : j.task, hours : x } : acc)
-                                                                      where x = min s.hours j.hours
-spread _                  _                  acc                  = reverse acc
-
-spread' :: List SHours -> List JHours -> List XHours
-spread' a b = spread a b Nil
-
 main :: forall e. Eff (fs :: FS, exception :: EXCEPTION, console :: CONSOLE, assert :: ASSERT | e) Unit
 main =
   do log ("Test: ")
      input <- readTextFile UTF8 ("test/input01.txt")
-     let output = (Main.renderToHTML input) <> "\n"
+     let output = (renderToHTML input) <> "\n"
          output2 = spread' testS testJ1
      writeTextFile UTF8 ("test/output01.html") output
      reference <- readTextFile UTF8 ("test/reference01.html")
-     log $ show output2
+     log $ foldMap (\x -> show x <> "\n") output2
      assert (reference == output)
      assert (output2 == testX1)
