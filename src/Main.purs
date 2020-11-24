@@ -207,9 +207,9 @@ switchEither text = either (const (Left text)) Right
 -- for splitting "Sonstiges"
 
 -- Idea. Filter list of jobs by "Sonstiges", turn each hit (even though it should only be one, but you never
--- know) from Job to List of SHours, get weighting from the "good jobs", turn into JHours, call `spread`
--- for each hit, turn result from XHours to Job again and add to the list of jobs. They will show up as a
--- separate row in the output. Consider adding comment to output, in the field after the account number.
+-- know) from Job to List of SHours, get weighting from the "good jobs", turn into JHours, call `spread` for
+-- each hit, turn result from XHours to Job again and add to the list of jobs. They will show up as a
+-- separate row in the output. Add comment for this row to output, in the field after the account number.
 
 -- Idea. Switch from List SHours to Map?
 
@@ -217,17 +217,16 @@ switchEither text = either (const (Left text)) Right
 -- toUnfoldable :: M.Map Int String -> List (Tuple Int String)
 
 jobToSHours :: Job -> Either String (List SHours)
-jobToSHours (Job { efforts }) = do es <- sequence $ map (\(Tuple i s) -> fromGermanFloat s >>= Tuple i >>> pure) (M.toUnfoldable efforts)
+jobToSHours (Job { efforts }) = do es <- sequence $ map (\(Tuple i s) -> fromGermanFloat s >>= Tuple i >>> pure) $ M.toUnfoldable efforts
                                    pure $ map (\(Tuple i hours) -> SHours { day : (show i), hours }) es
 
-jobToJHours :: Job -> List JHours
-jobToJHours j = Nil
+jobToJHours :: Job -> Either String (List JHours)
+jobToJHours (Job { job, efforts }) = do es <- sequence $ map fromGermanFloat (M.values efforts)
+                                        pure $ map (\hours -> JHours { task : job, hours }) es
 
 xHoursToJob :: List XHours -> Job
 xHoursToJob x = Job { job : "X"
                     , efforts : M.singleton 0 "X" }
-
--- XXXXXXXXXXXXXX
 
 nameThisFunction :: List Job -> Either String (List (List SHours))
 nameThisFunction js = sequence $ map jobToSHours $ filter (\(Job {job}) -> job == "Sonstiges") js
