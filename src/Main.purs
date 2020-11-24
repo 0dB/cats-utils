@@ -216,13 +216,13 @@ switchEither text = either (const (Left text)) Right
 -- here
 -- toUnfoldable :: M.Map Int String -> List (Tuple Int String)
 
+-- this could be simplified by just using Number instead of String for hours and inside efforts.
+
 jobToSHours :: Job -> Either String (List SHours)
-jobToSHours (Job { efforts }) = do es <- sequence $ map (\(Tuple i s) -> fromGermanFloat s >>= Tuple i >>> pure) $ M.toUnfoldable efforts
-                                   pure $ map (\(Tuple i hours) -> SHours { day : (show i), hours }) es
+jobToSHours (Job { efforts }) = sequence $ map (\(Tuple day s) -> fromGermanFloat s >>= \hours -> pure $ SHours { day, hours }) $ M.toUnfoldable efforts
 
 jobToJHours :: Job -> Either String (List JHours)
-jobToJHours (Job { job, efforts }) = do es <- sequence $ map fromGermanFloat (M.values efforts)
-                                        pure $ map (\hours -> JHours { task : job, hours }) es
+jobToJHours (Job { job, efforts }) = sequence $ map (\h -> fromGermanFloat h >>= \hours -> pure $ JHours { task : job, hours }) $ M.values efforts
 
 xHoursToJob :: List XHours -> Job
 xHoursToJob x = Job { job : "X"
@@ -232,7 +232,7 @@ nameThisFunction :: List Job -> Either String (List (List SHours))
 nameThisFunction js = sequence $ map jobToSHours $ filter (\(Job {job}) -> job == "Sonstiges") js
 
 totalEffortsOfJob :: Job -> Either String Number
-totalEffortsOfJob (Job { efforts }) = do es <- sequence $ map fromGermanFloat (M.values efforts)
+totalEffortsOfJob (Job { efforts }) = do es <- sequence $ map fromGermanFloat $ M.values efforts
                                          pure $ foldr (\x y -> x + y) 0.0 es
 
 totalEfforts :: List Job -> Either String Number
@@ -242,15 +242,15 @@ totalEfforts js = do efforts <- sequence $ map totalEffortsOfJob $ filter goodJo
 derive instance eqXHours :: Eq XHours
 
 instance showXHours :: Show XHours where
-  show (XHours x) = x.day <> " " <> x.task <> " " <> show (x.hours)
+  show (XHours x) = show (x.day) <> " " <> x.task <> " " <> show (x.hours)
 
-newtype SHours = SHours { day   :: String
+newtype SHours = SHours { day   :: Int
                         , hours :: Number }
 
 newtype JHours = JHours { task  :: String
                         , hours :: Number }
 
-newtype XHours = XHours { day   :: String
+newtype XHours = XHours { day   :: Int
                         , task  :: String
                         , hours :: Number }
 
