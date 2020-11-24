@@ -6,7 +6,7 @@
 -- TODO 2020-11 Write test case and then add data type for one row. Then extend by one more field in the
 -- row.
 
-module Main (JHours(..), XHours(..), SHours(..), spread', renderToHTML) where
+module Main (JHours(..), XHours(..), SHours(..), spread', renderToHTML, main) where
 
 import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<=<), (<<<), show, (>>=), (*), (/), (>>>), (<$>), (<*>), otherwise, (<=), min ,(+))
 import Control.Monad.Eff (Eff)
@@ -31,7 +31,9 @@ import Text.Smolder.Renderer.String (render) as TSRS
 import Flare (UI, textarea, radioGroup, intSlider)
 import Flare.Smolder (runFlareHTML)
 
-import Data.Eq
+import Data.Eq (class Eq)
+
+import Data.Tuple
 
 badjobs = ("INTERFLEX" : "D1CS" : "ORGA" : "AZ" : "Sonstiges" : Nil) :: List String
 
@@ -209,8 +211,14 @@ switchEither text = either (const (Left text)) Right
 -- for each hit, turn result from XHours to Job again and add to the list of jobs. They will show up as a
 -- separate row in the output. Consider adding comment to output, in the field after the account number.
 
-jobToSHours :: Job -> List SHours
-jobToSHours (Job { efforts }) = Nil
+-- Idea. Switch from List SHours to Map?
+
+-- here
+-- toUnfoldable :: M.Map Int String -> List (Tuple Int String)
+
+jobToSHours :: Job -> Either String (List SHours)
+jobToSHours (Job { efforts }) = do es <- sequence $ map (\(Tuple i s) -> fromGermanFloat s >>= Tuple i >>> pure) (M.toUnfoldable efforts)
+                                   pure $ map (\(Tuple i hours) -> SHours { day : (show i), hours }) es
 
 jobToJHours :: Job -> List JHours
 jobToJHours j = Nil
@@ -221,8 +229,8 @@ xHoursToJob x = Job { job : "X"
 
 -- XXXXXXXXXXXXXX
 
-nameThisFunction :: List Job -> List (List SHours)
-nameThisFunction js = map jobToSHours $ filter (\(Job {job}) -> job == "Sonstiges") js
+nameThisFunction :: List Job -> Either String (List (List SHours))
+nameThisFunction js = sequence $ map jobToSHours $ filter (\(Job {job}) -> job == "Sonstiges") js
 
 totalEffortsOfJob :: Job -> Either String Number
 totalEffortsOfJob (Job { efforts }) = do es <- sequence $ map fromGermanFloat (M.values efforts)
