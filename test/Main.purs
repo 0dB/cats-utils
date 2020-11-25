@@ -16,9 +16,9 @@ import Test.Assert (assert, ASSERT)
 import Data.Traversable -- (sequence, or, foldMap, fold)
 
 testS :: List SHours
-testS = ( SHours { day : "day 1", hours : 10.0 }
-        : SHours { day : "day 2", hours : 10.0 }
-        : SHours { day : "day 3", hours : 10.0 }
+testS = ( SHours { day : 1, hours : 10.0 }
+        : SHours { day : 2, hours : 10.0 }
+        : SHours { day : 3, hours : 10.0 }
         : Nil )
 
 testJ1 :: List JHours
@@ -27,10 +27,10 @@ testJ1 = ( JHours { task : "task 1", hours : 15.0 }
          : Nil )
 
 testX1 :: List XHours
-testX1 = ( XHours { day : "day 1", task : "task 1", hours : 10.0 }
-         : XHours { day : "day 2", task : "task 1", hours : 5.0 }
-         : XHours { day : "day 2", task : "task 2", hours : 5.0 }
-         : XHours { day : "day 3", task : "task 2", hours : 10.0 }
+testX1 = ( XHours { day : 1, task : "task 1", hours : 10.0 }
+         : XHours { day : 2, task : "task 1", hours : 5.0 }
+         : XHours { day : 2, task : "task 2", hours : 5.0 }
+         : XHours { day : 3, task : "task 2", hours : 10.0 }
          : Nil )
 
 testJ2 :: List JHours
@@ -41,12 +41,12 @@ testJ2 = ( JHours { task : "task 1", hours : 7.5 }
          : Nil )
 
 testX2 :: List XHours
-testX2 = ( XHours { day : "day 1", task : "task 1", hours :  7.5 }
-         : XHours { day : "day 1", task : "task 2", hours :  2.5 }
-         : XHours { day : "day 2", task : "task 2", hours :  5.0 }
-         : XHours { day : "day 2", task : "task 3", hours :  5.0 }
-         : XHours { day : "day 3", task : "task 3", hours :  2.5 }
-         : XHours { day : "day 3", task : "task 4", hours :  7.5 }
+testX2 = ( XHours { day : 1, task : "task 1", hours :  7.5 }
+         : XHours { day : 1, task : "task 2", hours :  2.5 }
+         : XHours { day : 2, task : "task 2", hours :  5.0 }
+         : XHours { day : 2, task : "task 3", hours :  5.0 }
+         : XHours { day : 3, task : "task 3", hours :  2.5 }
+         : XHours { day : 3, task : "task 4", hours :  7.5 }
          : Nil )
 
 main :: forall e. Eff (fs :: FS, exception :: EXCEPTION, console :: CONSOLE, assert :: ASSERT | e) Unit

@@ -224,9 +224,16 @@ jobToSHours (Job { efforts }) = sequence $ map (\(Tuple day s) -> fromGermanFloa
 jobToJHours :: Job -> Either String (List JHours)
 jobToJHours (Job { job, efforts }) = sequence $ map (\h -> fromGermanFloat h >>= \hours -> pure $ JHours { task : job, hours }) $ M.values efforts
 
-xHoursToJob :: List XHours -> Job
-xHoursToJob x = Job { job : "X"
-                    , efforts : M.singleton 0 "X" }
+-- use zipwith?
+-- efforts = fold (zipWith M.singleton ds hs)
+-- Job is String Int String (why not Number instead of String?)
+
+-- FIXME I think I actually need List XHours -> List Job. Think about whether I have to group XHours by
+-- common task or not.
+
+xHoursToJob :: XHours -> Job
+xHoursToJob (XHours { day, task, hours }) = Job { job : task
+                                                , efforts : M.singleton 1 "0.0" }
 
 nameThisFunction :: List Job -> Either String (List (List SHours))
 nameThisFunction js = sequence $ map jobToSHours $ filter (\(Job {job}) -> job == "Sonstiges") js
