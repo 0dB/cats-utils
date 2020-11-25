@@ -228,12 +228,13 @@ jobToJHours (Job { job, efforts }) = sequence $ map (\h -> fromGermanFloat h >>=
 -- efforts = fold (zipWith M.singleton ds hs)
 -- Job is String Int String (why not Number instead of String?)
 
--- FIXME I think I actually need List XHours -> List Job. Think about whether I have to group XHours by
--- common task or not.
+-- FIXME I actually need List XHours -> List Job. And to group XHours by task. Otherwise I get a separate line in the output for each day
+-- of the task instead of one line with all days in a week.
 
-xHoursToJob :: XHours -> Job
-xHoursToJob (XHours { day, task, hours }) = Job { job : task
-                                                , efforts : M.singleton 1 "0.0" }
+xHoursToJob :: XHours -> Either String Job
+xHoursToJob (XHours { day, task, hours }) = do hours' <- toGermanFloat hours
+                                               pure $ Job { job : task
+                                                          , efforts : M.singleton day hours' }
 
 nameThisFunction :: List Job -> Either String (List (List SHours))
 nameThisFunction js = sequence $ map jobToSHours $ filter (\(Job {job}) -> job == "Sonstiges") js
