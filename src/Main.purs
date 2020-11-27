@@ -229,19 +229,14 @@ jobToJHours (Job { job, efforts }) = sequence $ map (\h -> fromGermanFloat h >>=
 -- or just
 -- efforts : fold (map (M.singleton 0) es'')
 
-mapOverEfforts :: Job -> M.Map Int String
-mapOverEfforts (Job { efforts }) = M.mapWithKey (\k v -> v) efforts
+-- TIL Data.Map is also traversable so I can apply sequence()
 
 divideAllEfforts :: Job -> Number -> Either String Job
-divideAllEfforts (Job { job, efforts }) x = if x == 0.0 then Left "Divide by zero error."
-                                              else do es <- sequence $ map fromGermanFloat $ M.values efforts -- FIXME must map over all of efforts, to keep data type
-                                                      let es' = map (\y -> y / x) es
-                                                      es'' <- sequence $ map toGermanFloat $ es'
-                                                      pure $ Job { job
-                                                                 , efforts : fold (map (M.singleton 0) es'') } -- FIXME : Need to get day into this
+divideAllEfforts (Job { job, efforts }) x = if x == 0.0
+                                            then Left "Divide by zero error."
+                                            else do di <- sequence $ M.mapWithKey (\k v -> fromGermanFloat v >>= \v' -> pure (round100 (v' / x)) >>= toGermanFloat) efforts
+                                                    pure $ Job { job, efforts : di }
 
--- use zipwith?
--- efforts = fold (zipWith M.singleton ds hs)
 -- Job is String Int String (why not Number instead of String?)
 
 -- FIXME I actually need List XHours -> List Job. And to group XHours by task. Otherwise I get a separate line in the output for each day
