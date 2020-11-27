@@ -224,6 +224,17 @@ jobToSHours (Job { efforts }) = sequence $ map (\(Tuple day s) -> fromGermanFloa
 jobToJHours :: Job -> Either String (List JHours)
 jobToJHours (Job { job, efforts }) = sequence $ map (\h -> fromGermanFloat h >>= \hours -> pure $ JHours { task : job, hours }) $ M.values efforts
 
+-- how to turn list into Map
+-- efforts : fold (map (\e -> M.singleton 0 e) es'')
+
+divideAllEfforts :: Job -> Number -> Either String Job
+divideAllEfforts (Job { job, efforts }) x = if x == 0.0 then Left "Divide by zero error."
+                                              else do es <- sequence $ map fromGermanFloat $ M.values efforts -- FIXME must map over all of efforts, to keep data type
+                                                      let es' = map (\y -> y / x) es
+                                                      es'' <- sequence $ map toGermanFloat $ es' 
+                                                      pure $ Job { job
+                                                                 , efforts : fold (map (\e -> M.singleton 0 e) es'') } -- FIXME : Need to get day into this
+
 -- use zipwith?
 -- efforts = fold (zipWith M.singleton ds hs)
 -- Job is String Int String (why not Number instead of String?)
@@ -232,7 +243,7 @@ jobToJHours (Job { job, efforts }) = sequence $ map (\h -> fromGermanFloat h >>=
 -- of the task instead of one line with all days in a week.
 
 xHoursToJob :: XHours -> Either String Job
-xHoursToJob (XHours { day, task, hours }) = do hours' <- toGermanFloat hours
+xHoursToJob (XHours { day, task, hours }) = do hours' <- toGermanFloat $ round100 hours
                                                pure $ Job { job : task
                                                           , efforts : M.singleton day hours' }
 
