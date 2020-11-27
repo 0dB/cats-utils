@@ -226,14 +226,19 @@ jobToJHours (Job { job, efforts }) = sequence $ map (\h -> fromGermanFloat h >>=
 
 -- how to turn list into Map
 -- efforts : fold (map (\e -> M.singleton 0 e) es'')
+-- or just
+-- efforts : fold (map (M.singleton 0) es'')
+
+mapOverEfforts :: Job -> M.Map Int String
+mapOverEfforts (Job { efforts }) = M.mapWithKey (\k v -> v) efforts
 
 divideAllEfforts :: Job -> Number -> Either String Job
 divideAllEfforts (Job { job, efforts }) x = if x == 0.0 then Left "Divide by zero error."
                                               else do es <- sequence $ map fromGermanFloat $ M.values efforts -- FIXME must map over all of efforts, to keep data type
                                                       let es' = map (\y -> y / x) es
-                                                      es'' <- sequence $ map toGermanFloat $ es' 
+                                                      es'' <- sequence $ map toGermanFloat $ es'
                                                       pure $ Job { job
-                                                                 , efforts : fold (map (\e -> M.singleton 0 e) es'') } -- FIXME : Need to get day into this
+                                                                 , efforts : fold (map (M.singleton 0) es'') } -- FIXME : Need to get day into this
 
 -- use zipwith?
 -- efforts = fold (zipWith M.singleton ds hs)
