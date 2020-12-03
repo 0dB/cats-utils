@@ -230,14 +230,13 @@ jobToJHours (Job { job, efforts }) = sequence $ map (\h -> fromGermanFloat h >>=
 -- efforts : fold (map (M.singleton 0) es'')
 
 -- TIL Data.Map is also traversable so I can apply sequence()
+-- TIL Inside the function I am mapping over teh "efforts", I do NOT get to use >>> as I usually do. And the call to round100 needed it. Sort of obvious now.
 
 divideAllEfforts :: Job -> Number -> Either String Job
 divideAllEfforts (Job { job, efforts }) x = if x == 0.0
                                             then Left "Divide by zero error."
-                                            else do di <- sequence $ M.mapWithKey (\k v -> fromGermanFloat v >>= \v' -> pure (round100 (v' / x)) >>= toGermanFloat) efforts
+                                            else do di <- sequence $ M.mapWithKey (\_ v -> fromGermanFloat v >>= \v' -> pure (round100 (v' / x)) >>= toGermanFloat) efforts
                                                     pure $ Job { job, efforts : di }
-
--- Job is String Int String (why not Number instead of String?)
 
 -- FIXME I actually need List XHours -> List Job. And to group XHours by task. Otherwise I get a separate line in the output for each day
 -- of the task instead of one line with all days in a week.
