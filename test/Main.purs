@@ -4,16 +4,15 @@ import Prelude (Unit, bind, discard, show, ($), (<>), (==))
 import Main (JHours(..), SHours(..), XHours(..), renderToHTML, spread')
 import Data.List (List(..), (:))
 
-import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.Console (CONSOLE, log)
-import Control.Monad.Eff.Exception (EXCEPTION)
-import Node.FS (FS)
+import Effect (Effect)
+import Effect.Console (log)
+
 import Node.FS.Sync (readTextFile, writeTextFile)
 import Node.Encoding (Encoding(..))
 
-import Test.Assert (assert, ASSERT)
+import Test.Assert (assert)
 
-import Data.Traversable -- (sequence, or, foldMap, fold)
+import Data.Traversable (foldMap)
 
 testS :: List SHours
 testS = ( SHours { day : 1, hours : 10.0 }
@@ -49,7 +48,7 @@ testX2 = ( XHours { day : 1, task : "task 1", hours :  7.5 }
          : XHours { day : 3, task : "task 4", hours :  7.5 }
          : Nil )
 
-main :: forall e. Eff (fs :: FS, exception :: EXCEPTION, console :: CONSOLE, assert :: ASSERT | e) Unit
+main :: Effect Unit
 main =
   do input0 <- readTextFile UTF8 ("test/input00.txt")
      let output0 = (renderToHTML input0) <> "\n"

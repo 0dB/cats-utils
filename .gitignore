@@ -7,3 +7,6 @@ node_modules
 .psci
 output
 main.js
+.purs-repl
+.spago/
+test/output00.html

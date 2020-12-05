@@ -9,7 +9,7 @@
 module Main (JHours(..), XHours(..), SHours(..), spread', renderToHTML, main) where
 
 import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<=<), (<<<), show, (>>=), (*), (/), (>>>), (<$>), (<*>), otherwise, (<=), min ,(+))
-import Control.Monad.Eff (Eff)
+import Effect (Effect)
 import Text.Parsing.CSV (Parsers, makeParsers)
 import Text.Parsing.Parser (runParser)
 import Data.List (List(Nil), elemIndex, filter, range, (:), reverse, take, drop, zipWith, intercalate)
@@ -23,8 +23,6 @@ import Global as G
 
 import Data.Monoid (mempty)
 import Data.NonEmpty ((:|))
-import DOM (DOM)
-import Signal.Channel (CHANNEL)
 import Text.Smolder.HTML (table, td, tr, th, h2) as HTML
 import Text.Smolder.Markup (Markup, text) as MU
 import Text.Smolder.Renderer.String (render) as TSRS
@@ -33,7 +31,7 @@ import Flare.Smolder (runFlareHTML)
 
 import Data.Eq (class Eq)
 
-import Data.Tuple
+import Data.Tuple (Tuple(..))
 
 badjobs = ("INTERFLEX" : "D1CS" : "ORGA" : "AZ" : "Sonstiges" : Nil) :: List String
 
@@ -235,7 +233,7 @@ jobToJHours (Job { job, efforts }) = sequence $ map (\h -> fromGermanFloat h >>=
 divideAllEfforts :: Job -> Number -> Either String Job
 divideAllEfforts (Job { job, efforts }) x = if x == 0.0
                                             then Left "Divide by zero error."
-                                            else do di <- sequence $ M.mapWithKey (\_ v -> fromGermanFloat v >>= \v' -> pure (round100 (v' / x)) >>= toGermanFloat) efforts
+                                            else do di <- sequence $ M.mapMaybeWithKey (\_ v -> Just (fromGermanFloat v >>= \v' -> pure (round100 (v' / x)) >>= toGermanFloat)) efforts
                                                     pure $ Job { job, efforts : di }
 
 -- FIXME I actually need List XHours -> List Job. And to group XHours by task. Otherwise I get a separate line in the output for each day
@@ -356,11 +354,12 @@ toInt Friday    = 4
 toInt Saturday  = 5
 toInt Sunday    = 6
 
-ui :: forall e e'. UI e (MU.Markup e')
+-- ui :: forall e e'. UI e (MU.Markup e')
+-- ui :: forall t709. UI (Free (MarkupM t709) Unit)
 ui = renderInput <$>
      radioGroup "First of month" (Monday :| [Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]) show <*>
      intSlider "Morph" 0 4 0  <*>
      textarea "Raw Input" ""
 
-main :: forall a. Eff ( dom :: DOM, channel :: CHANNEL | a ) Unit
+main :: Effect Unit
 main = runFlareHTML "controls" "output" ui
