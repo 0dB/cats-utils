@@ -23,8 +23,9 @@ import Global as G
 
 import Data.Monoid (mempty)
 import Data.NonEmpty ((:|))
+import Control.Monad.Free (Free)
 import Text.Smolder.HTML (table, td, tr, th, h2) as HTML
-import Text.Smolder.Markup (Markup, text) as MU
+import Text.Smolder.Markup (Markup, MarkupM, text) as MU
 import Text.Smolder.Renderer.String (render) as TSRS
 import Flare (UI, textarea, radioGroup, intSlider)
 import Flare.Smolder (runFlareHTML)
@@ -355,7 +356,7 @@ toInt Saturday  = 5
 toInt Sunday    = 6
 
 -- ui :: forall e e'. UI e (MU.Markup e')
--- ui :: forall t709. UI (Free (MarkupM t709) Unit)
+ui :: forall t. UI (Free (MU.MarkupM t) Unit)
 ui = renderInput <$>
      radioGroup "First of month" (Monday :| [Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]) show <*>
      intSlider "Morph" 0 4 0  <*>
