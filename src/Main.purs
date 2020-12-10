@@ -6,7 +6,7 @@
 -- TODO 2020-11 Write test case and then add data type for one row. Then extend by one more field in the
 -- row.
 
-module Main (JHours(..), XHours(..), SHours(..), spread', renderToHTML, main) where
+module Main (JHours(..), XHours(..), SHours(..), spread', renderToHTML, renderToHTML', main, Job(Job), Efforts, divideAllEfforts, totalEfforts) where
 
 import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<=<), (<<<), show, (>>=), (*), (/), (>>>), (<$>), (<*>), otherwise, (<=), min ,(+))
 import Effect (Effect)
@@ -78,6 +78,12 @@ type Efforts = M.Map Int String
 
 newtype Job = Job { job     :: String
                   , efforts :: Efforts }
+
+derive instance eqJob :: Eq Job
+
+-- cheap and dirty show for now
+instance doshowJob :: Show Job where
+  show = show <<< fold <<< map (\x -> x <> " ") <<< showJob (range 1 31)
 
 parsedFileToJobs :: List (List String) -> Either String (List Job)
 parsedFileToJobs ((_ : dates) : joblines) = readDates dates >>= readJobs (filter notEmpty $ joblines)
@@ -229,31 +235,45 @@ jobToJHours (Job { job, efforts }) = sequence $ map (\h -> fromGermanFloat h >>=
 -- efforts : fold (map (M.singleton 0) es'')
 
 -- TIL Data.Map is also traversable so I can apply sequence()
--- TIL Inside the function I am mapping over teh "efforts", I do NOT get to use >>> as I usually do. And the call to round100 needed it. Sort of obvious now.
 
-divideAllEfforts :: Job -> Number -> Either String Job
-divideAllEfforts (Job { job, efforts }) x = if x == 0.0
+-- TIL Inside the function I am mapping over the "efforts", I do NOT get to use >>> as I usually do. And the call to
+-- round100 needed it. Sort of obvious now.
+
+divideAllEfforts :: Number -> Job -> Either String Job
+divideAllEfforts x (Job { job, efforts }) = if x == 0.0
                                             then Left "Divide by zero error."
-                                            else do di <- sequence $ M.mapMaybeWithKey (\_ v -> Just (fromGermanFloat v >>= \v' -> pure (round100 (v' / x)) >>= toGermanFloat)) efforts
+                                            else do di <- sequence $ M.mapMaybeWithKey (\_ v -> Just (fromGermanFloat v >>= \v' ->
+                                                                                                       pure (round100 (v' / x)) >>=
+                                                                                                       toGermanFloat))
+                                                                     efforts
                                                     pure $ Job { job, efforts : di }
 
--- FIXME I actually need List XHours -> List Job. And to group XHours by task. Otherwise I get a separate line in the output for each day
--- of the task instead of one line with all days in a week.
+-- FIXME I actually need List XHours -> List Job. And to group XHours by task. Otherwise I get a separate line in the
+-- output for each day of the task instead of one line with all days in a week.
 
 xHoursToJob :: XHours -> Either String Job
 xHoursToJob (XHours { day, task, hours }) = do hours' <- toGermanFloat $ round100 hours
                                                pure $ Job { job : task
                                                           , efforts : M.singleton day hours' }
 
-nameThisFunction :: List Job -> Either String (List (List SHours))
-nameThisFunction js = sequence $ map jobToSHours $ filter (\(Job {job}) -> job == "Sonstiges") js
+spreadSonstiges :: List Job -> Either String (List Job)
+spreadSonstiges js = do hoursgjs <- totalEfforts gjs
+                        hourssjs <- totalEfforts sjs
+                        let factor = hourssjs / hoursgjs
+                        factoredgjs <- sequence $ map (divideAllEfforts factor) gjs
+                        jhours <- sequence $ map jobToJHours factoredgjs
+                        shours <- sequence $ map jobToSHours sjs
+                        let xhours = spread' (fold shours) (fold jhours)
+                        sequence $ map xHoursToJob xhours
+                      where sjs = filter (\(Job {job}) -> job == "Sonstiges") js
+                            gjs = filter goodJob js
 
 totalEffortsOfJob :: Job -> Either String Number
 totalEffortsOfJob (Job { efforts }) = do es <- sequence $ map fromGermanFloat $ M.values efforts
                                          pure $ foldr (\x y -> x + y) 0.0 es
 
 totalEfforts :: List Job -> Either String Number
-totalEfforts js = do efforts <- sequence $ map totalEffortsOfJob $ filter goodJob js
+totalEfforts js = do efforts <- sequence $ map totalEffortsOfJob $ js
                      pure $ foldr (\x y -> x + y) 0.0 efforts
 
 derive instance eqXHours :: Eq XHours
@@ -318,10 +338,13 @@ renderInput i r s = HTML.h2 (MU.text "Output") <>
                               4 -> case weeksC of
                                      Right w  -> table' w
                                      Left err -> MU.text err
+                              5 -> case weeksC' of
+                                     Right w  -> table' w
+                                     Left err -> MU.text err
                               otherwise -> mempty
 
   where raw        = switchEither "Error: Parsing CSV failed!" $ runParser s excelParsers.file
-        parsed     = raw    >>= parsedFileToJobs -- this is where to also spread out "Sonstiges" into "good" jobs
+        parsed     = raw    >>= parsedFileToJobs
         month'     = parsed >>=                    (\jobs -> let groups = groupBy 31 Nil (month 0) in
                                                              map (groupFilterShowNoFilter jobs) groups) >>> pure
         monthS     = parsed >>= filter goodJob >>> (\jobs -> let groups = groupBy 7 Nil (month (toInt i)) in
@@ -330,11 +353,19 @@ renderInput i r s = HTML.h2 (MU.text "Output") <>
                                                              map (groupFilterShowNoFilter jobs) groups) >>> pure
         weeksC     = parsed >>= filter goodJob >>> (\jobs -> let groups = groupBy 7 Nil (month (toInt i)) in
                                                              map (groupFilterShow jobs) groups) >>> pure
+        weeksC'    = do pjs <- parsed
+                        spreadhours <- spreadSonstiges pjs
+                        let jobs = (filter goodJob pjs) <> spreadhours
+                        pure (let groups = groupBy 7 Nil (month (toInt i)) in
+                               map (groupFilterShow jobs) groups)
 
 data Weekday = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday
 
 renderToHTML :: String -> String
 renderToHTML = TSRS.render <<< renderInput Monday 4
+
+renderToHTML' :: String -> String
+renderToHTML' = TSRS.render <<< renderInput Monday 5
 
 instance showWeekday :: Show Weekday where
   show :: Weekday -> String
@@ -359,7 +390,7 @@ toInt Sunday    = 6
 ui :: forall t. UI (Free (MU.MarkupM t) Unit)
 ui = renderInput <$>
      radioGroup "First of month" (Monday :| [Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]) show <*>
-     intSlider "Morph" 0 4 0  <*>
+     intSlider "Morph" 0 5 0  <*>
      textarea "Raw Input" ""
 
 main :: Effect Unit

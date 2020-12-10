@@ -1,18 +1,16 @@
 module Test.Main where
 
-import Prelude (Unit, bind, discard, show, ($), (<>), (==))
-import Main (JHours(..), SHours(..), XHours(..), renderToHTML, spread')
-import Data.List (List(..), (:))
-
+import Data.List (List(..), (:), zipWith)
+import Data.Map as M
+import Data.Traversable (foldMap, fold)
 import Effect (Effect)
 import Effect.Console (log)
-
-import Node.FS.Sync (readTextFile, writeTextFile)
+import Main (JHours(..), Job(Job), SHours(..), XHours(..), divideAllEfforts, renderToHTML, renderToHTML', spread', totalEfforts)
 import Node.Encoding (Encoding(..))
-
+import Node.FS.Sync (readTextFile, writeTextFile)
+import Prelude (Unit, bind, discard, show, ($), (<>), (==))
 import Test.Assert (assert)
-
-import Data.Traversable (foldMap)
+import Data.Either (Either(..))
 
 testS :: List SHours
 testS = ( SHours { day : 1, hours : 10.0 }
@@ -48,16 +46,30 @@ testX2 = ( XHours { day : 1, task : "task 1", hours :  7.5 }
          : XHours { day : 3, task : "task 4", hours :  7.5 }
          : Nil )
 
+dummyJob :: Job
+dummyJob = Job { job : "dummy"
+               , efforts : fold $ zipWith M.singleton (15 : 5 : 1 : Nil) ("15,0" : "5,0" : "1,0" : Nil) }
+
+dummyJobHalf :: Job
+dummyJobHalf = Job { job : "dummy"
+                   , efforts : fold $ zipWith M.singleton (15 : 5 : 1 : Nil) ("7,5" : "2,5" : "0,5": Nil) }
+
 main :: Effect Unit
 main =
   do input0 <- readTextFile UTF8 ("test/input00.txt")
      let output0 = (renderToHTML input0) <> "\n"
+         output01 = (renderToHTML' input0) <> "\n" -- new spread function. Not working correctly yet
          output1 = spread' testS testJ1
          output2 = spread' testS testJ2
      writeTextFile UTF8 ("test/output00.html") output0
+     writeTextFile UTF8 ("test/output01.html") output01
      reference0 <- readTextFile UTF8 ("test/reference00.html")
      log $ foldMap (\x -> show x <> "\n") output1
      log $ foldMap (\x -> show x <> "\n") output2
      assert (reference0 == output0) -- testing main function (data that is used for CATS)
      assert (output1 == testX1)     -- testing new spread function
      assert (output2 == testX2)
+     log $ show dummyJob
+     -- part of new spread functions
+     assert (divideAllEfforts 2.0 dummyJob == Right dummyJobHalf)
+     assert (totalEfforts (dummyJob : Nil) == Right 21.0)
