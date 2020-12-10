@@ -6,7 +6,7 @@
 -- TODO 2020-11 Write test case and then add data type for one row. Then extend by one more field in the
 -- row.
 
-module Main (JHours(..), XHours(..), SHours(..), spread', renderToHTML, renderToHTML', main, Job(Job), Efforts, divideAllEfforts, totalEfforts) where
+module Main (JHours(..), XHours(..), SHours(..), spread', renderToHTML, renderToHTML', main, Job(Job), Efforts, multiplyAllEfforts, totalEfforts) where
 
 import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<=<), (<<<), show, (>>=), (*), (/), (>>>), (<$>), (<*>), otherwise, (<=), min ,(+))
 import Effect (Effect)
@@ -239,14 +239,12 @@ jobToJHours (Job { job, efforts }) = sequence $ map (\h -> fromGermanFloat h >>=
 -- TIL Inside the function I am mapping over the "efforts", I do NOT get to use >>> as I usually do. And the call to
 -- round100 needed it. Sort of obvious now.
 
-divideAllEfforts :: Number -> Job -> Either String Job
-divideAllEfforts x (Job { job, efforts }) = if x == 0.0
-                                            then Left "Divide by zero error."
-                                            else do di <- sequence $ M.mapMaybeWithKey (\_ v -> Just (fromGermanFloat v >>= \v' ->
-                                                                                                       pure (round100 (v' / x)) >>=
-                                                                                                       toGermanFloat))
-                                                                     efforts
-                                                    pure $ Job { job, efforts : di }
+multiplyAllEfforts :: Number -> Job -> Either String Job
+multiplyAllEfforts x (Job { job, efforts }) = do di <- sequence $ M.mapMaybeWithKey (\_ v -> Just (fromGermanFloat v >>= \v' ->
+                                                                                                    pure (round100 (v' * x)) >>=
+                                                                                                    toGermanFloat))
+                                                                  efforts
+                                                 pure $ Job { job, efforts : di }
 
 -- FIXME I actually need List XHours -> List Job. And to group XHours by task. Otherwise I get a separate line in the
 -- output for each day of the task instead of one line with all days in a week.
@@ -260,7 +258,7 @@ spreadSonstiges :: List Job -> Either String (List Job)
 spreadSonstiges js = do hoursgjs <- totalEfforts gjs
                         hourssjs <- totalEfforts sjs
                         let factor = hourssjs / hoursgjs
-                        factoredgjs <- sequence $ map (divideAllEfforts factor) gjs
+                        factoredgjs <- sequence $ map (multiplyAllEfforts factor) gjs
                         jhours <- sequence $ map jobToJHours factoredgjs
                         shours <- sequence $ map jobToSHours sjs
                         let xhours = spread' (fold shours) (fold jhours)

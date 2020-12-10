@@ -5,7 +5,7 @@ import Data.Map as M
 import Data.Traversable (foldMap, fold)
 import Effect (Effect)
 import Effect.Console (log)
-import Main (JHours(..), Job(Job), SHours(..), XHours(..), divideAllEfforts, renderToHTML, renderToHTML', spread', totalEfforts)
+import Main (JHours(..), Job(Job), SHours(..), XHours(..), multiplyAllEfforts, renderToHTML, renderToHTML', spread', totalEfforts)
 import Node.Encoding (Encoding(..))
 import Node.FS.Sync (readTextFile, writeTextFile)
 import Prelude (Unit, bind, discard, show, ($), (<>), (==))
@@ -71,5 +71,5 @@ main =
      assert (output2 == testX2)
      log $ show dummyJob
      -- part of new spread functions
-     assert (divideAllEfforts 2.0 dummyJob == Right dummyJobHalf)
+     assert (multiplyAllEfforts 0.5 dummyJob == Right dummyJobHalf)
      assert (totalEfforts (dummyJob : Nil) == Right 21.0)
