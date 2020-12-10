@@ -363,7 +363,7 @@ renderToHTML :: String -> String
 renderToHTML = TSRS.render <<< renderInput Monday 4
 
 renderToHTML' :: String -> String
-renderToHTML' = TSRS.render <<< renderInput Monday 5
+renderToHTML' = TSRS.render <<< renderInput Sunday 5
 
 instance showWeekday :: Show Weekday where
   show :: Weekday -> String

@@ -68,6 +68,7 @@ main =
      log $ foldMap (\x -> show x <> "\n") output2
      assert (reference0 == output0) -- testing main function (data that is used for CATS)
      assert (output1 == testX1)     -- testing new spread function
+     log "testing x2"
      assert (output2 == testX2)
      log $ show dummyJob
      -- part of new spread functions
