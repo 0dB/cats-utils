@@ -10,7 +10,6 @@ import Node.Encoding (Encoding(..))
 import Node.FS.Sync (readTextFile, writeTextFile)
 import Prelude (Unit, bind, discard, show, ($), (<>), (==))
 import Test.Assert (assert)
-import Data.Either (Either(..))
 
 testS :: List SHours
 testS = ( SHours { day : 1, hours : 10.0 }
@@ -48,11 +47,11 @@ testX2 = ( XHours { day : 1, task : "task 1", hours :  7.5 }
 
 dummyJob :: Job
 dummyJob = Job { job : "dummy"
-               , efforts : fold $ zipWith M.singleton (15 : 5 : 1 : Nil) ("15,0" : "5,0" : "1,0" : Nil) }
+               , efforts : fold $ zipWith M.singleton (15 : 5 : 1 : Nil) (15.0 : 5.0 : 1.0 : Nil) }
 
 dummyJobHalf :: Job
 dummyJobHalf = Job { job : "dummy"
-                   , efforts : fold $ zipWith M.singleton (15 : 5 : 1 : Nil) ("7,5" : "2,5" : "0,5": Nil) }
+                   , efforts : fold $ zipWith M.singleton (15 : 5 : 1 : Nil) (7.5 : 2.5 : 0.5: Nil) }
 
 main :: Effect Unit
 main =
@@ -72,5 +71,5 @@ main =
      assert (output2 == testX2)
      log $ show dummyJob
      -- part of new spread functions
-     assert (multiplyAllEfforts 0.5 dummyJob == Right dummyJobHalf)
-     assert (totalEfforts (dummyJob : Nil) == Right 21.0)
+     assert (multiplyAllEfforts 0.5 dummyJob == dummyJobHalf)
+     assert (totalEfforts (dummyJob : Nil) == 21.0)

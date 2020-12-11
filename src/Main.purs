@@ -8,7 +8,8 @@
 
 module Main (JHours(..), XHours(..), SHours(..), spread', renderToHTML, renderToHTML', main, Job(Job), Efforts, multiplyAllEfforts, totalEfforts) where
 
-import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<=<), (<<<), show, (>>=), (*), (/), (>>>), (<$>), (<*>), otherwise, (<=), min ,(+))
+import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<<<), show
+               , (>>=), (*), (/), (>>>), (<$>), (<*>), otherwise, (<=), min ,(+))
 import Effect (Effect)
 import Text.Parsing.CSV (Parsers, makeParsers)
 import Text.Parsing.Parser (runParser)
@@ -74,7 +75,7 @@ round100 n = toNumber (round (n * 100.0)) / 100.0
 -- Create list of jobs where each job is the name of a project or account and has a map of date and hours
 -- (efforts)
 
-type Efforts = M.Map Int String
+type Efforts = M.Map Int Number
 
 newtype Job = Job { job     :: String
                   , efforts :: Efforts }
@@ -105,8 +106,8 @@ parsedFileToJobs ((_ : dates) : joblines) = readDates dates >>= readJobs (filter
                                       let efforts = fold (zipWith M.singleton ds hs)
                                       pure $ Job { job, efforts }
 
-        readHour :: String -> Either String String
-        readHour = toGermanFloat <<< round100 <=< fromGermanFloat
+        readHour :: String -> Either String Number
+        readHour = fromGermanFloat
 
         -- filter out empty line with just newline (actually only expected at the end)
         notEmpty :: List String -> Boolean
@@ -127,7 +128,7 @@ filterDateRange days jobs = map (go days) jobs
         filterEfforts es day = maybe M.empty (M.singleton day) (M.lookup day es)
 
 nonZeroP :: Job -> Boolean
-nonZeroP (Job { efforts }) = or $ map ((/=) "0") $ M.values efforts
+nonZeroP (Job { efforts }) = or $ map ((/=) 0.0) $ M.values efforts
 
 goodJob :: Job -> Boolean
 goodJob (Job { job }) = isNothing (elemIndex job badjobs)
@@ -151,7 +152,7 @@ formatRowForCATS j = j
 showJob' :: List Int -> Job -> List String
 showJob' days (Job { job, efforts }) = job : foldMap (\d -> showEffort d : Nil) days
   where showEffort :: Int -> String
-        showEffort day = fromMaybe "" (M.lookup day efforts)
+        showEffort day = show $ fromMaybe 0.0 (M.lookup day efforts)
 
 -- PureScript uses <<< rather than . for right-to-left composition of functions. This is to avoid a
 -- syntactic ambiguity with . being used for property access and name qualification. There is also a
@@ -223,11 +224,11 @@ switchEither text = either (const (Left text)) Right
 
 -- this could be simplified by just using Number instead of String for hours and inside efforts.
 
-jobToSHours :: Job -> Either String (List SHours)
-jobToSHours (Job { efforts }) = sequence $ map (\(Tuple day s) -> fromGermanFloat s >>= \hours -> pure $ SHours { day, hours }) $ M.toUnfoldable efforts
+jobToSHours :: Job -> List SHours
+jobToSHours (Job { efforts }) = map (\(Tuple day hours) -> SHours { day, hours }) $ M.toUnfoldable efforts
 
-jobToJHours :: Job -> Either String (List JHours)
-jobToJHours (Job { job, efforts }) = sequence $ map (\h -> fromGermanFloat h >>= \hours -> pure $ JHours { task : job, hours }) $ M.values efforts
+jobToJHours :: Job -> List JHours
+jobToJHours (Job { job, efforts }) = map (\hours -> JHours { task : job, hours }) $ M.values efforts
 
 -- how to turn list into Map
 -- efforts : fold (map (\e -> M.singleton 0 e) es'')
@@ -239,40 +240,35 @@ jobToJHours (Job { job, efforts }) = sequence $ map (\h -> fromGermanFloat h >>=
 -- TIL Inside the function I am mapping over the "efforts", I do NOT get to use >>> as I usually do. And the call to
 -- round100 needed it. Sort of obvious now.
 
-multiplyAllEfforts :: Number -> Job -> Either String Job
-multiplyAllEfforts x (Job { job, efforts }) = do di <- sequence $ M.mapMaybeWithKey (\_ v -> Just (fromGermanFloat v >>= \v' ->
-                                                                                                    pure (round100 (v' * x)) >>=
-                                                                                                    toGermanFloat))
-                                                                  efforts
-                                                 pure $ Job { job, efforts : di }
+multiplyAllEfforts :: Number -> Job -> Job
+multiplyAllEfforts x (Job { job, efforts }) = Job { job, efforts : di }
+                                              where di = M.mapMaybeWithKey (\_ v -> Just (v * x))
+                                                         efforts
 
 -- FIXME I actually need List XHours -> List Job. And to group XHours by task. Otherwise I get a separate line in the
 -- output for each day of the task instead of one line with all days in a week.
 
-xHoursToJob :: XHours -> Either String Job
-xHoursToJob (XHours { day, task, hours }) = do hours' <- toGermanFloat $ round100 hours
-                                               pure $ Job { job : task
-                                                          , efforts : M.singleton day hours' }
+xHoursToJob :: XHours -> Job
+xHoursToJob (XHours { day, task, hours }) = Job { job : task
+                                                , efforts : M.singleton day hours }
 
-spreadSonstiges :: List Job -> Either String (List Job)
-spreadSonstiges js = do hoursgjs <- totalEfforts gjs
-                        hourssjs <- totalEfforts sjs
-                        let factor = hourssjs / hoursgjs
-                        factoredgjs <- sequence $ map (multiplyAllEfforts factor) gjs
-                        jhours <- sequence $ map jobToJHours factoredgjs
-                        shours <- sequence $ map jobToSHours sjs
-                        let xhours = spread' (fold shours) (fold jhours)
-                        sequence $ map xHoursToJob xhours
-                      where sjs = filter (\(Job {job}) -> job == "Sonstiges") js
-                            gjs = filter goodJob js
+spreadSonstiges :: List Job -> List Job
+spreadSonstiges js = map xHoursToJob xhours
+                     where hoursgjs = totalEfforts gjs
+                           hourssjs = totalEfforts sjs
+                           factor = hourssjs / hoursgjs
+                           factoredgjs = map (multiplyAllEfforts factor) gjs
+                           jhours = map jobToJHours factoredgjs
+                           shours = map jobToSHours sjs
+                           xhours = spread' (fold shours) (fold jhours)
+                           sjs = filter (\(Job {job}) -> job == "Sonstiges") js
+                           gjs = filter goodJob js
 
-totalEffortsOfJob :: Job -> Either String Number
-totalEffortsOfJob (Job { efforts }) = do es <- sequence $ map fromGermanFloat $ M.values efforts
-                                         pure $ foldr (\x y -> x + y) 0.0 es
+totalEffortsOfJob :: Job -> Number
+totalEffortsOfJob (Job { efforts }) = foldr (\x y -> x + y) 0.0 $ M.values efforts
 
-totalEfforts :: List Job -> Either String Number
-totalEfforts js = do efforts <- sequence $ map totalEffortsOfJob $ js
-                     pure $ foldr (\x y -> x + y) 0.0 efforts
+totalEfforts :: List Job -> Number
+totalEfforts js = foldr (\x y -> x + y) 0.0 $ map totalEffortsOfJob $ js
 
 derive instance eqXHours :: Eq XHours
 
@@ -352,8 +348,8 @@ renderInput i r s = HTML.h2 (MU.text "Output") <>
         weeksC     = parsed >>= filter goodJob >>> (\jobs -> let groups = groupBy 7 Nil (month (toInt i)) in
                                                              map (groupFilterShow jobs) groups) >>> pure
         weeksC'    = do pjs <- parsed
-                        spreadhours <- spreadSonstiges pjs
-                        let jobs = (filter goodJob pjs) <> spreadhours
+                        let spreadhours = spreadSonstiges pjs
+                            jobs = (filter goodJob pjs) <> spreadhours
                         pure (let groups = groupBy 7 Nil (month (toInt i)) in
                                map (groupFilterShow jobs) groups)
 
