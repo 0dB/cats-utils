@@ -310,8 +310,20 @@ spread _ _ acc = reverse acc
 spread' :: List SHours -> List JHours -> List XHours
 spread' a b = spread a b Nil
 
+mergeJobs :: NonEmptyList Job -> Job
+mergeJobs js = foldr (\(Job { job : jobA, efforts : effortsA })
+                       (Job { job : jobB, efforts : effortsB }) ->
+                      (Job { job : jobA, efforts : effortsA <> effortsB }))
+               (Job { job : "Nothing", efforts : M.empty })
+               js
+
+groupJobs :: List Job -> List (NonEmptyList Job)
+groupJobs js = groupBy (\(Job { job : jobA })
+                         (Job { job : jobB }) ->
+                        jobA == jobB) js
+
 spreadSonstiges :: List Job -> List Job
-spreadSonstiges js = map xHoursToJob xhours
+spreadSonstiges js = map mergeJobs $ groupJobs $ map xHoursToJob xhours
                      where sjs = filter (\(Job {job}) -> job == "Sonstiges") js
                            gjs = filter goodJob js
 
