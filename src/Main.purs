@@ -297,26 +297,6 @@ multiplyAllEfforts x (Job { job, efforts }) = Job { job, efforts : es }
                                               where es = M.mapMaybeWithKey (\_ v -> Just (v * x))
                                                          efforts
 
-spreadSonstiges :: List Job -> List Job
-spreadSonstiges js = map xHoursToJob xhours
-                     where sjs = filter (\(Job {job}) -> job == "Sonstiges") js
-                           gjs = filter goodJob js
-
-                           hoursgjs = totalEfforts gjs
-                           hourssjs = totalEfforts sjs
-
-                           factor = hourssjs / hoursgjs
-                           factoredgjs = map (multiplyAllEfforts factor) gjs
-
-                           jhours :: List JHours
-                           jhours = map sumJHours $ groupJHours $ fold $ map jobToJHours factoredgjs
-
-                           shours :: List SHours
-                           shours = fold $ map jobToSHours sjs
-
-                           xhours :: List XHours
-                           xhours = spread' shours jhours
-
 spread :: List SHours -> List JHours -> List XHours -> List XHours
 spread (SHours s : srest) (JHours j : jrest) acc | s.hours <= 0.0 = spread srest              (JHours j : jrest) acc
                                                  | j.hours <= 0.0 = spread (SHours s : srest) jrest              acc
@@ -329,6 +309,28 @@ spread _ _ acc = reverse acc
 
 spread' :: List SHours -> List JHours -> List XHours
 spread' a b = spread a b Nil
+
+spreadSonstiges :: List Job -> List Job
+spreadSonstiges js = map xHoursToJob xhours
+                     where sjs = filter (\(Job {job}) -> job == "Sonstiges") js
+                           gjs = filter goodJob js
+
+                           hoursgjs = totalEfforts gjs
+                           hourssjs = totalEfforts sjs
+
+                           factor = hourssjs / hoursgjs
+                           factoredgjs = map (multiplyAllEfforts factor) gjs
+
+                           -- get number of Sonstiges hours that need to be distributed
+                           shours :: List SHours
+                           shours = fold $ map jobToSHours sjs
+
+                           -- get matching number of weighted job hours
+                           jhours :: List JHours
+                           jhours = map sumJHours $ groupJHours $ fold $ map jobToJHours factoredgjs
+
+                           xhours :: List XHours
+                           xhours = spread' shours jhours
 
 -- TODO: How to get copy and paste to work without using " " to recognize EOL?
 
