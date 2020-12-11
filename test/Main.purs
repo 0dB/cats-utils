@@ -56,16 +56,18 @@ dummyJobHalf = Job { job : "dummy"
 main :: Effect Unit
 main =
   do input0 <- readTextFile UTF8 ("test/input00.txt")
-     let output0 = (renderToHTML input0) <> "\n"
-         output01 = (renderToHTML' input0) <> "\n" -- new spread function. Not working correctly yet
+     let output0  = (renderToHTML input0) <> "\n"
+         output01 = (renderToHTML' input0) <> "\n"
          output1 = spread' testS testJ1
          output2 = spread' testS testJ2
      writeTextFile UTF8 ("test/output00.html") output0
      writeTextFile UTF8 ("test/output01.html") output01
-     reference0 <- readTextFile UTF8 ("test/reference00.html")
+     reference0  <- readTextFile UTF8 ("test/reference00.html")
+     reference01 <- readTextFile UTF8 ("test/reference01.html")
      log $ foldMap (\x -> show x <> "\n") output1
      log $ foldMap (\x -> show x <> "\n") output2
-     assert (reference0 == output0) -- testing main function (data that is used for CATS)
+     assert (reference0  == output0) -- testing main function (data that is used for CATS)
+     assert (reference01 == output01)
      assert (output1 == testX1)     -- testing new spread function
      log "testing x2"
      assert (output2 == testX2)
