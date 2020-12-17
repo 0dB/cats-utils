@@ -9,4 +9,4 @@ output
 index.js
 .purs-repl
 .spago/
-test/output00.html
+test/output*
