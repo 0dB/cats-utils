@@ -108,6 +108,8 @@ let upstream =
       https://github.com/purescript/package-sets/releases/download/psc-0.13.8-20201206/packages.dhall sha256:c9ffd7577fb8ee2197309591d7ccc0f506ee37b9078866f0ef159f5abbb1b32b
 
 in  upstream
-  with csv.repo = "https://github.com/nwolverson/purescript-csv.git"
-  with csv.version = "v3.0.0"
-  with csv.dependencies = [ "ordered-collections", "arrays", "parsing" ]
+with csv =
+  { dependencies = [ "ordered-collections", "arrays", "parsing" ]
+  , repo = "https://github.com/nwolverson/purescript-csv.git"
+  , version = "v3.0.0"
+  }
