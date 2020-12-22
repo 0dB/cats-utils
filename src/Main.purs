@@ -92,28 +92,43 @@ derive instance eqJob :: Eq Job
 instance doshowJob :: Show Job where
   show = show <<< fold <<< map (\x -> x <> " ") <<< showJob (range 1 31)
 
-parsedFileToJobs :: List (List String) -> Either String (List Job)
+newtype SHours = SHours { day   :: Int
+                        , hours :: Number }
+
+newtype JHours = JHours { task  :: String
+                        , hours :: Number }
+
+newtype XHours = XHours { day   :: Int
+                        , task  :: String
+                        , hours :: Number }
+
+derive instance eqXHours :: Eq XHours
+
+instance showXHours :: Show XHours where
+  show (XHours x) = show (x.day) <> " " <> x.task <> " " <> show (x.hours)
+
+parsedFileToJobs :: List (List String) -> Either String (List XHours)
 parsedFileToJobs ((_ : dates) : joblines) = readDates dates >>= readJobs (filter notEmpty $ joblines)
 
-  where readDates :: List String -> Either String (List Int)
-        readDates ds = sequence $ map readDay ds
-
-        readJobs :: List (List String) -> List Int -> Either String (List Job)
-        readJobs js ds = sequence $ map (readJob ds) js
-
-        readDay :: String -> Either String Int
+  where readDay :: String -> Either String Int
         readDay d | Just date <- fromString d = Right date
                   | otherwise                 = Left ("Error: Could not read date " <> d <> ".")
 
-        readJob :: List Int -> List String -> Either String Job
-        readJob _   Nil          = Left "Error: No input line."
-        readJob _  (job : Nil)   = Left ("Error: No efforts found after job name " <> job <> ".")
-        readJob ds (job : hours) = do hs <- sequence $ map readHour hours
-                                      let efforts = fold (zipWith M.singleton ds hs)
-                                      pure $ Job { job, efforts }
+        readDates :: List String -> Either String (List Int)
+        readDates ds = sequence $ map readDay ds
 
         readHour :: String -> Either String Number
         readHour = fromGermanFloat
+
+        readJob :: List Int -> List String -> Either String (List XHours)
+        readJob _   Nil          = Left "Error: No input line."
+        readJob _  (job : Nil)   = Left ("Error: No efforts found after job name " <> job <> ".")
+        readJob ds (job : hours) = do hs <- sequence $ map readHour hours
+                                      pure $ zipWith (\d h -> XHours { task : job, day : d, hours : h  } )  ds hs
+
+        readJobs :: List (List String) -> List Int -> Either String (List XHours)
+        readJobs js ds = do xhs <- sequence $ map (readJob ds) js
+                            pure $ fold xhs
 
         -- filter out empty line with just newline (actually only expected at the end)
         notEmpty :: List String -> Boolean
@@ -250,21 +265,6 @@ switchEither text = either (const (Left text)) Right
 -- FIXME I actually need List XHours -> List Job. And to group XHours by task. Otherwise I get a separate line in the
 -- output for each day of the task instead of one line with all days in a week.
 
-newtype SHours = SHours { day   :: Int
-                        , hours :: Number }
-
-newtype JHours = JHours { task  :: String
-                        , hours :: Number }
-
-newtype XHours = XHours { day   :: Int
-                        , task  :: String
-                        , hours :: Number }
-
-derive instance eqXHours :: Eq XHours
-
-instance showXHours :: Show XHours where
-  show (XHours x) = show (x.day) <> " " <> x.task <> " " <> show (x.hours)
-
 jobToSHours :: Job -> List SHours
 jobToSHours (Job { efforts }) = map (\(Tuple day hours) -> SHours { day, hours }) $ M.toUnfoldable efforts
 
@@ -273,6 +273,14 @@ jobToJHours (Job { job, efforts }) = map (\hours -> JHours { task : job, hours }
 
 xHoursToJob :: XHours -> Job
 xHoursToJob (XHours { day, task, hours }) = Job { job : task , efforts : M.singleton day hours }
+
+groupxhs :: List XHours -> List (NonEmptyList XHours)
+groupxhs = groupBy (\(XHours { day : dayA, task : taskA, hours : hoursA })
+                     (XHours { day : dayB, task : taskB, hours : hoursB }) ->
+                    taskA == taskB)
+
+xHoursToJobs :: List XHours -> List Job
+xHoursToJobs = groupxhs >>> map (map xHoursToJob) >>> map mergeJobs
 
 sumJHours :: NonEmptyList JHours -> JHours
 sumJHours jhs = foldr (\(JHours { task : taskA, hours : hoursA })
@@ -385,17 +393,19 @@ renderInput i r s = HTML.h2 (MU.text "Output") <>
 
   where raw        = switchEither "Error: Parsing CSV failed!" $ runParser s excelParsers.file
         parsed     = raw    >>= parsedFileToJobs
-        month'     = parsed >>=                    (\jobs -> let groups = myGroupBy 31 Nil (month 0) in
-                                                             map (groupFilterShowNoFilter jobs) groups) >>> pure
-        monthS     = parsed >>= filter goodJob >>> (\jobs -> let groups = myGroupBy 7 Nil (month (toInt i)) in
-                                                             map (groupFilterShowStaggered jobs) groups) >>> pure
-        weeks      = parsed >>= filter goodJob >>> (\jobs -> let groups = myGroupBy 7 Nil (month (toInt i)) in
-                                                             map (groupFilterShowNoFilter jobs) groups) >>> pure
-        weeksC     = parsed >>= filter goodJob >>> (\jobs -> let groups = myGroupBy 7 Nil (month (toInt i)) in
-                                                             map (groupFilterShow jobs) groups) >>> pure
+        month'     = parsed >>= xHoursToJobs >>> (\jobs -> let groups = myGroupBy 31 Nil (month 0) in
+                                                   map (groupFilterShowNoFilter jobs) groups) >>> pure
+        monthS     = parsed >>= xHoursToJobs >>> filter goodJob >>> (\jobs -> let groups = myGroupBy 7 Nil (month (toInt i)) in
+                                                                      map (groupFilterShowStaggered jobs) groups) >>> pure
+        weeks      = parsed >>= xHoursToJobs >>> filter goodJob >>>
+                     (\jobs -> let groups = myGroupBy 7 Nil (month (toInt i)) in
+                       map (groupFilterShowNoFilter jobs) groups) >>> pure
+        weeksC     = parsed >>=  xHoursToJobs >>> filter goodJob >>> (\jobs -> let groups = myGroupBy 7 Nil (month (toInt i)) in
+                                                                       map (groupFilterShow jobs) groups) >>> pure
         weeksC'    = do pjs <- parsed
-                        let spreadhours = spreadSonstiges pjs
-                            jobs = (filter goodJob pjs) <> spreadhours
+                        let pjs' = xHoursToJobs pjs
+                            spreadhours = spreadSonstiges pjs'
+                            jobs = (filter goodJob pjs') <> spreadhours
                         pure (let groups = myGroupBy 7 Nil (month (toInt i)) in
                                map (groupFilterShow jobs) groups)
 
@@ -430,7 +440,7 @@ toInt Sunday    = 6
 ui :: forall t. UI (Free (MU.MarkupM t) Unit)
 ui = renderInput <$>
      radioGroup "First of month" (Monday :| [Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]) show <*>
-     intSlider "Morph" 0 5 0  <*>
+     intSlider "Morph" 0 5 5  <*>
      textarea "Raw Input" ""
 
 main :: Effect Unit
