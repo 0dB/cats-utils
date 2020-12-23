@@ -1,11 +1,10 @@
 module Test.Main where
 
-import Data.List (List(..), (:), zipWith)
-import Data.Map as M
-import Data.Traversable (foldMap, fold)
+import Data.List (List(..), (:))
+import Data.Traversable (foldMap)
 import Effect (Effect)
 import Effect.Console (log)
-import Main (JHours(..), Job(Job), SHours(..), XHours(..), multiplyAllEfforts, renderToHTML, renderToHTML', spread', totalEfforts)
+import Main (JHours(..), SHours(..), XHours(..), multiplyAllEfforts, renderToHTML, renderToHTML', spread', totalEfforts)
 import Node.Encoding (Encoding(..))
 import Node.FS.Sync (readTextFile, writeTextFile)
 import Prelude (Unit, bind, discard, show, ($), (<>), (==))
@@ -13,45 +12,44 @@ import Test.Assert (assert)
 
 testS :: List SHours
 testS = ( SHours { day : 1, hours : 10.0 }
-        : SHours { day : 2, hours : 10.0 }
-        : SHours { day : 3, hours : 10.0 }
-        : Nil )
+          : SHours { day : 2, hours : 10.0 }
+          : SHours { day : 3, hours : 10.0 }
+          : Nil )
 
 testJ1 :: List JHours
 testJ1 = ( JHours { task : "task 1", hours : 15.0 }
-         : JHours { task : "task 2", hours : 15.0 }
-         : Nil )
+           : JHours { task : "task 2", hours : 15.0 }
+           : Nil )
 
 testX1 :: List XHours
 testX1 = ( XHours { day : 1, task : "task 1", hours : 10.0 }
-         : XHours { day : 2, task : "task 1", hours : 5.0 }
-         : XHours { day : 2, task : "task 2", hours : 5.0 }
-         : XHours { day : 3, task : "task 2", hours : 10.0 }
-         : Nil )
+           : XHours { day : 2, task : "task 1", hours : 5.0 }
+           : XHours { day : 2, task : "task 2", hours : 5.0 }
+           : XHours { day : 3, task : "task 2", hours : 10.0 }
+           : Nil )
 
 testJ2 :: List JHours
 testJ2 = ( JHours { task : "task 1", hours : 7.5 }
-         : JHours { task : "task 2", hours : 7.5 }
-         : JHours { task : "task 3", hours : 7.5 }
-         : JHours { task : "task 4", hours : 7.5 }
-         : Nil )
+           : JHours { task : "task 2", hours : 7.5 }
+           : JHours { task : "task 3", hours : 7.5 }
+           : JHours { task : "task 4", hours : 7.5 }
+           : Nil )
 
 testX2 :: List XHours
 testX2 = ( XHours { day : 1, task : "task 1", hours :  7.5 }
-         : XHours { day : 1, task : "task 2", hours :  2.5 }
-         : XHours { day : 2, task : "task 2", hours :  5.0 }
-         : XHours { day : 2, task : "task 3", hours :  5.0 }
-         : XHours { day : 3, task : "task 3", hours :  2.5 }
-         : XHours { day : 3, task : "task 4", hours :  7.5 }
-         : Nil )
+           : XHours { day : 1, task : "task 2", hours :  2.5 }
+           : XHours { day : 2, task : "task 2", hours :  5.0 }
+           : XHours { day : 2, task : "task 3", hours :  5.0 }
+           : XHours { day : 3, task : "task 3", hours :  2.5 }
+           : XHours { day : 3, task : "task 4", hours :  7.5 }
+           : Nil )
 
-dummyJob :: Job
-dummyJob = Job { job : "dummy"
-               , efforts : fold $ zipWith M.singleton (15 : 5 : 1 : Nil) (15.0 : 5.0 : 1.0 : Nil) }
-
-dummyJobHalf :: Job
-dummyJobHalf = Job { job : "dummy"
-                   , efforts : fold $ zipWith M.singleton (15 : 5 : 1 : Nil) (7.5 : 2.5 : 0.5: Nil) }
+testX1Half :: List XHours
+testX1Half = ( XHours { day : 1, task : "task 1", hours : 5.0 }
+               : XHours { day : 2, task : "task 1", hours : 2.5 }
+               : XHours { day : 2, task : "task 2", hours : 2.5 }
+               : XHours { day : 3, task : "task 2", hours : 5.0 }
+               : Nil )
 
 main :: Effect Unit
 main =
@@ -71,7 +69,6 @@ main =
      assert (output1 == testX1)     -- testing new spread function
      log "testing x2"
      assert (output2 == testX2)
-     log $ show dummyJob
      -- part of new spread functions
-     assert (multiplyAllEfforts 0.5 dummyJob == dummyJobHalf)
-     assert (totalEfforts (dummyJob : Nil) == 21.0)
+     assert (multiplyAllEfforts 0.5 testX1 == testX1Half)
+     assert (totalEfforts testX1 == 30.0)
