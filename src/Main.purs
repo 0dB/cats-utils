@@ -1,9 +1,4 @@
--- this will cause an error:
--- module Main (fromGermanFloat, toGermanFloat, round100) where
-
--- OLD: create HTML with `pulp build -O -t main.js`
-
--- NEW: create HTML with `spago bundle-app`
+-- create HTML with `spago bundle-app`
 
 -- TODO 2020-11 Write test case and then add data type for one row. Then extend by one more field in the
 -- row.
@@ -39,19 +34,6 @@ import Data.Eq (class Eq)
 
 badtasks = ("INTERFLEX" : "D1CS" : "ORGA" : "AZ" : "Sonstiges" : Nil) :: List String
 
-month :: Int -> List Int
-month offset = range (1 - offset) 31
-
-daysInWeek = 7 :: Int
-
--- Group a list into groups of certain size, returning list of lists
-
--- Renamed to myGroupBy. Because there is a groupBy in Data.List which I might still need.
-
-myGroupBy :: forall a. Int -> List (List a) -> List a -> List (List a)
-myGroupBy n acc Nil = reverse acc
-myGroupBy n acc r = myGroupBy n (take n r : acc) (drop n r)
-
 fromGermanFloat :: String -> Either String Number
 fromGermanFloat g = case S.split (S.Pattern ",") g of
                       [""]    -> Right 0.0 -- the ".0" will be filtered out later in `toGermanFloat`
@@ -76,20 +58,6 @@ toGermanFloat n = case S.split (S.Pattern ".") (show n) of
 round100 :: Number -> Number
 round100 n = toNumber (round (n * 100.0)) / 100.0
 
--- Create list of jobs where each job is the name of a project or account and has a map of date and hours
--- (efforts)
-
-type Efforts = M.Map Int Number
-
-newtype Job = Job { job     :: String
-                  , efforts :: Efforts }
-
-derive instance eqJob :: Eq Job
-
--- cheap and dirty show for now
-instance doshowJob :: Show Job where
-  show = show <<< fold <<< map (\x -> x <> " ") <<< showJob (range 1 31)
-
 newtype SHours = SHours { day   :: Int
                         , hours :: Number }
 
@@ -105,8 +73,8 @@ derive instance eqXHours :: Eq XHours
 instance showXHours :: Show XHours where
   show (XHours x) = show (x.day) <> " " <> x.task <> " " <> show (x.hours)
 
-parsedFileToJobs :: List (List String) -> Either String (List XHours)
-parsedFileToJobs ((_ : dates) : joblines) = readDates dates >>= readJobs (filter notEmpty $ joblines)
+parsedFileToXHours :: List (List String) -> Either String (List XHours)
+parsedFileToXHours ((_ : dates) : joblines) = readDates dates >>= readJobs (filter notEmpty $ joblines)
 
   where readDay :: String -> Either String Int
         readDay d | Just date <- fromString d = Right date
@@ -133,7 +101,102 @@ parsedFileToJobs ((_ : dates) : joblines) = readDates dates >>= readJobs (filter
         notEmpty ("" : Nil) = false
         notEmpty _          = true
 
-parsedFileToJobs _ = Left "Error: No input line found."
+parsedFileToXHours _ = Left "Error: No input line found."
+
+goodJob :: XHours -> Boolean
+goodJob (XHours { task }) = isNothing (elemIndex task badtasks)
+
+-- TIL toUnfoldable :: M.Map Int String -> List (Tuple Int String)
+
+-- TIL how to turn List into Map
+-- fold (map (M.singleton 0) x)
+
+-- TIL Data.Map is also traversable so I can apply sequence()
+
+spread :: List SHours -> List JHours -> List XHours -> List XHours
+spread (SHours s : srest) (JHours j : jrest) acc | s.hours <= 0.0 = spread srest              (JHours j : jrest) acc
+                                                 | j.hours <= 0.0 = spread (SHours s : srest) jrest              acc
+                                                 | otherwise      = spread (SHours s { hours = s.hours - x } : srest)
+                                                                           (JHours j { hours = j.hours - x } : jrest)
+                                                                           (XHours { day : s.day, task : j.task, hours : x } : acc)
+                                                                      where x = min s.hours j.hours
+
+spread _ _ acc = reverse acc
+
+spread' :: List SHours -> List JHours -> List XHours
+spread' a b = spread a b Nil
+
+multiplyAllEfforts :: Number -> List XHours -> List XHours
+multiplyAllEfforts x = map (\(XHours { task, hours : h, day } ) -> XHours { hours : (h * x), day, task })
+
+totalEfforts :: List XHours -> Number
+totalEfforts = foldr (\(XHours { hours } ) y -> hours + y) 0.0
+
+spreadSonstiges :: List XHours -> List XHours
+spreadSonstiges xhs = spread' shours jhours
+                      where shs = filter (\(XHours { task }) -> task == "Sonstiges") xhs
+                            ghs = filter goodJob xhs
+
+                            hoursghs = totalEfforts ghs
+                            hoursshs = totalEfforts shs
+
+                            factor = hoursshs / hoursghs
+                            factoredghs = multiplyAllEfforts factor ghs
+
+                            xHoursToSHours :: List XHours -> List SHours
+                            xHoursToSHours = map (\(XHours { hours, day } ) -> SHours { day, hours })
+
+                            xHoursToJHours :: List XHours -> List JHours
+                            xHoursToJHours = map (\(XHours { hours, task } ) -> JHours { task, hours })
+
+                            -- get number of Sonstiges hours that need to be distributed
+                            shours :: List SHours
+                            shours = xHoursToSHours shs
+
+                            sumJHours :: NonEmptyList JHours -> JHours
+                            sumJHours = foldr (\(JHours { task : taskA, hours : hoursA })
+                                                (JHours { task : taskB, hours : hoursB }) ->
+                                               JHours { task : taskA, hours : hoursA + hoursB })
+                                        (JHours { task : "None", hours : 0.0 })
+
+                            groupJHours :: List JHours -> List (NonEmptyList JHours)
+                            groupJHours = groupBy (\(JHours { task : taskA })
+                                                    (JHours { task : taskB }) ->
+                                                   taskA == taskB)
+
+                            -- get matching number of weighted job hours
+                            jhours :: List JHours
+                            jhours = map sumJHours $ groupJHours $ xHoursToJHours factoredghs
+
+-- Create list of jobs where each job is the name of a project or account and has a map of date and hours
+-- (efforts)
+
+type Efforts = M.Map Int Number
+
+newtype Job = Job { job     :: String
+                  , efforts :: Efforts }
+
+derive instance eqJob :: Eq Job
+
+-- cheap and dirty show for now
+instance doshowJob :: Show Job where
+  show = show <<< fold <<< map (\x -> x <> " ") <<< showJob (range 1 31)
+
+xHoursToJobs :: List XHours -> List Job
+xHoursToJobs = groupxhs >>> map (map xHoursToJob) >>> map mergeJobs
+               where xHoursToJob :: XHours -> Job
+                     xHoursToJob (XHours { day, task, hours }) = Job { job : task , efforts : M.singleton day hours }
+
+                     groupxhs :: List XHours -> List (NonEmptyList XHours)
+                     groupxhs = groupBy (\(XHours { task : taskA })
+                                          (XHours { task : taskB }) ->
+                                         taskA == taskB)
+
+                     mergeJobs :: NonEmptyList Job -> Job
+                     mergeJobs = foldr (\(Job { job : jobA, efforts : effortsA })
+                                         (Job { job : jobB, efforts : effortsB }) ->
+                                        (Job { job : jobA, efforts : effortsA <> effortsB }))
+                                 (Job { job : "Nothing", efforts : M.empty })
 
 filterDateRange :: List Int -> List Job -> List Job
 filterDateRange days jobs = map (go days) jobs
@@ -148,9 +211,6 @@ filterDateRange days jobs = map (go days) jobs
 
 nonZeroP :: Job -> Boolean
 nonZeroP (Job { efforts }) = or $ map ((/=) 0.0) $ M.values efforts
-
-goodJob :: XHours -> Boolean
-goodJob (XHours { task }) = isNothing (elemIndex task badtasks)
 
 filler = ("" : "" : Nil) :: List String
 
@@ -180,13 +240,6 @@ showJob' days (Job { job, efforts }) = job : foldMap (\d -> showEffort d : Nil) 
                            Just n -> myShowN n
                            Nothing -> ""
 
--- PureScript uses <<< rather than . for right-to-left composition of functions. This is to avoid a
--- syntactic ambiguity with . being used for property access and name qualification. There is also a
--- corresponding >>> operator for left-to-right composition.
--- https://github.com/purescript/documentation/blob/master/language/Differences-from-Haskell.md
--- (f <<< g) x = f (g x)
--- https://stackoverflow.com/questions/29881695/what-does-the-triple-less-than-sign-do-in-purescript
-
 showJob :: List Int -> Job -> List String
 showJob days = showJob' days >>> formatRowForCATS >>> internalExternal
 
@@ -208,6 +261,12 @@ showHeaderRow = showHeaderRow' >>> formatRowForCATS >>> prefixHeader
 -- TODO 2020-11 Make this safer by introducing type with certain amount of fields (maybe even named)
 
 emptyRow = (("" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : Nil) : Nil)  :: List (List String)
+
+-- Renamed to myGroupBy. Because there is a groupBy in Data.List which I might still need.
+
+myGroupBy :: forall a. Int -> List (List a) -> List a -> List (List a)
+myGroupBy n acc Nil = reverse acc
+myGroupBy n acc r = myGroupBy n (take n r : acc) (drop n r)
 
 showJobs :: List Int -> List Job -> List (List String)
 showJobs days = (:) (showHeaderRow days) <<<
@@ -236,87 +295,6 @@ groupFilterShowNoFilter js r = showJobs' r $ filter nonZeroP $ filterDateRange r
 switchEither :: forall a b. String -> Either a b -> Either String b
 switchEither text = either (const (Left text)) Right
 
--- toUnfoldable :: M.Map Int String -> List (Tuple Int String)
-
--- how to turn List into Map
--- efforts : fold (map (\e -> M.singleton 0 e) es'')
--- or just
--- efforts : fold (map (M.singleton 0) es'')
-
--- TIL Data.Map is also traversable so I can apply sequence()
-
-xHoursToSHours :: List XHours -> List SHours
-xHoursToSHours = map (\(XHours { hours, day } ) -> SHours { day, hours })
-
-xHoursToJHours :: List XHours -> List JHours
-xHoursToJHours = map (\(XHours { hours, task } ) -> JHours { task, hours })
-
-sumJHours :: NonEmptyList JHours -> JHours
-sumJHours = foldr (\(JHours { task : taskA, hours : hoursA })
-                    (JHours { task : taskB, hours : hoursB }) ->
-                   JHours { task : taskA, hours : hoursA + hoursB })
-            (JHours { task : "None", hours : 0.0 })
-
-groupJHours :: List JHours -> List (NonEmptyList JHours)
-groupJHours = groupBy (\(JHours { task : taskA })
-                        (JHours { task : taskB }) ->
-                       taskA == taskB)
-
-totalEfforts :: List XHours -> Number
-totalEfforts = foldr (\(XHours { hours } ) y -> hours + y) 0.0
-
-multiplyAllEfforts :: Number -> List XHours -> List XHours
-multiplyAllEfforts x = map (\(XHours { task, hours : h, day } ) -> XHours { hours : (h * x), day, task })
-
-spread :: List SHours -> List JHours -> List XHours -> List XHours
-spread (SHours s : srest) (JHours j : jrest) acc | s.hours <= 0.0 = spread srest              (JHours j : jrest) acc
-                                                 | j.hours <= 0.0 = spread (SHours s : srest) jrest              acc
-                                                 | otherwise      = spread (SHours s { hours = s.hours - x } : srest)
-                                                                           (JHours j { hours = j.hours - x } : jrest)
-                                                                           (XHours { day : s.day, task : j.task, hours : x } : acc)
-                                                                      where x = min s.hours j.hours
-
-spread _ _ acc = reverse acc
-
-spread' :: List SHours -> List JHours -> List XHours
-spread' a b = spread a b Nil
-
-xHoursToJob :: XHours -> Job
-xHoursToJob (XHours { day, task, hours }) = Job { job : task , efforts : M.singleton day hours }
-
-groupxhs :: List XHours -> List (NonEmptyList XHours)
-groupxhs = groupBy (\(XHours { task : taskA })
-                     (XHours { task : taskB }) ->
-                    taskA == taskB)
-
-mergeJobs :: NonEmptyList Job -> Job
-mergeJobs = foldr (\(Job { job : jobA, efforts : effortsA })
-                    (Job { job : jobB, efforts : effortsB }) ->
-                   (Job { job : jobA, efforts : effortsA <> effortsB }))
-            (Job { job : "Nothing", efforts : M.empty })
-
-xHoursToJobs :: List XHours -> List Job
-xHoursToJobs = groupxhs >>> map (map xHoursToJob) >>> map mergeJobs
-
-spreadSonstiges :: List XHours -> List XHours
-spreadSonstiges xhs = spread' shours jhours
-                      where shs = filter (\(XHours { task }) -> task == "Sonstiges") xhs
-                            ghs = filter goodJob xhs
-
-                            hoursghs = totalEfforts ghs
-                            hoursshs = totalEfforts shs
-
-                            factor = hoursshs / hoursghs
-                            factoredghs = multiplyAllEfforts factor ghs
-
-                            -- get number of Sonstiges hours that need to be distributed
-                            shours :: List SHours
-                            shours = xHoursToSHours shs
-
-                            -- get matching number of weighted job hours
-                            jhours :: List JHours
-                            jhours = map sumJHours $ groupJHours $ xHoursToJHours factoredghs
-
 -- TODO: How to get copy and paste to work without using " " to recognize EOL?
 
 excelParsers = makeParsers '\'' "\t" "\n" :: Parsers String
@@ -331,6 +309,9 @@ table rs = mempty
 
 table' :: forall e. List (List (List String)) -> MU.Markup e
 table' ts = HTML.table $ foldMap table ts
+
+month :: Int -> List Int
+month offset = range (1 - offset) 31
 
 -- third parameter is input field
 
@@ -357,7 +338,7 @@ renderInput i r s = HTML.h2 (MU.text "Output") <>
                               otherwise -> mempty
 
   where raw        = switchEither "Error: Parsing CSV failed!" $ runParser s excelParsers.file
-        parsed     = raw    >>= parsedFileToJobs
+        parsed     = raw    >>= parsedFileToXHours
         month'     = parsed >>= xHoursToJobs >>> (\jobs -> let groups = myGroupBy 31 Nil (month 0) in
                                                    map (groupFilterShowNoFilter jobs) groups) >>> pure
         monthS     = parsed >>= filter goodJob >>> xHoursToJobs >>> (\jobs -> let groups = myGroupBy 7 Nil (month (toInt i)) in
