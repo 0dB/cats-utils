@@ -74,7 +74,7 @@ instance showXHours :: Show XHours where
   show (XHours x) = show (x.day) <> " " <> x.task <> " " <> show (x.hours)
 
 parsedFileToXHours :: List (List String) -> Either String (List XHours)
-parsedFileToXHours ((_ : dates) : joblines) = readDates dates >>= readJobs (filter notEmpty $ joblines)
+parsedFileToXHours ((_ : dates) : joblines) = readDates dates >>= readJobs (filter notEmpty joblines)
 
   where readDay :: String -> Either String Int
         readDay d | Just date <- fromString d = Right date
@@ -87,14 +87,13 @@ parsedFileToXHours ((_ : dates) : joblines) = readDates dates >>= readJobs (filt
         readHour = fromGermanFloat
 
         readJob :: List Int -> List String -> Either String (List XHours)
-        readJob _   Nil          = Left "Error: No input line."
-        readJob _  (job : Nil)   = Left ("Error: No efforts found after job name " <> job <> ".")
-        readJob ds (job : hours) = do hs <- sequence $ map readHour hours
-                                      pure $ zipWith (\d h -> XHours { task : job, day : d, hours : h  } )  ds hs
+        readJob _   Nil         = Left "Error: No input line."
+        readJob _  (task : Nil) = Left ("Error: No efforts found after job name " <> task <> ".")
+        readJob ds (task : hs)  = zipWith (\day hours -> XHours { task, day, hours } ) ds <$>
+                                  sequence (map readHour hs)
 
         readJobs :: List (List String) -> List Int -> Either String (List XHours)
-        readJobs js ds = do xhs <- sequence $ map (readJob ds) js
-                            pure $ fold xhs
+        readJobs js ds = fold <$> sequence (map (readJob ds) js)
 
         -- filter out empty line with just newline (actually only expected at the end)
         notEmpty :: List String -> Boolean
@@ -119,7 +118,7 @@ spread (SHours s : srest) (JHours j : jrest) acc | s.hours <= 0.0 = spread srest
                                                  | otherwise      = spread (SHours s { hours = s.hours - x } : srest)
                                                                            (JHours j { hours = j.hours - x } : jrest)
                                                                            (XHours { day : s.day, task : j.task, hours : x } : acc)
-                                                                      where x = min s.hours j.hours
+                                                                    where x = min s.hours j.hours
 
 spread _ _ acc = reverse acc
 
@@ -144,20 +143,20 @@ spreadSonstiges xhs = spread' shours jhours
                             factoredghs = multiplyAllEfforts factor ghs
 
                             xHoursToSHours :: List XHours -> List SHours
-                            xHoursToSHours = map (\(XHours { hours, day } ) -> SHours { day, hours })
+                            xHoursToSHours = map (\(XHours { hours, day } ) -> SHours { hours, day })
 
                             xHoursToJHours :: List XHours -> List JHours
-                            xHoursToJHours = map (\(XHours { hours, task } ) -> JHours { task, hours })
+                            xHoursToJHours = map (\(XHours { hours, task } ) -> JHours { hours, task })
 
                             -- get number of Sonstiges hours that need to be distributed
                             shours :: List SHours
                             shours = xHoursToSHours shs
 
                             sumJHours :: NonEmptyList JHours -> JHours
-                            sumJHours = foldr (\(JHours { task : taskA, hours : hoursA })
-                                                (JHours { task : taskB, hours : hoursB }) ->
+                            sumJHours = foldr (\(JHours { hours : hoursA, task : taskA })
+                                                (JHours { hours : hoursB }) ->
                                                JHours { task : taskA, hours : hoursA + hoursB })
-                                        (JHours { task : "None", hours : 0.0 })
+                                        (JHours { task : "", hours : 0.0 })
 
                             groupJHours :: List JHours -> List (NonEmptyList JHours)
                             groupJHours = groupBy (\(JHours { task : taskA })
