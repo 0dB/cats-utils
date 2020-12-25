@@ -3,7 +3,7 @@
 -- TODO 2020-11 Write test case and then add data type for one row. Then extend by one more field in the
 -- row.
 
-module Main (JHours(..), XHours(..), SHours(..), spread', renderToHTML, renderToHTML', main, Job(Job), Efforts, multiplyAllEfforts, totalEfforts) where
+module Main (JHours(..), XHours(..), spread', renderToHTML, renderToHTML', main, Job(Job), Efforts, multiplyAllEfforts, totalEfforts) where
 
 import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<<<), show
                , (>>=), (*), (/), (>>>), (<$>), (<*>), otherwise, (<=), min ,(+))
@@ -58,20 +58,17 @@ toGermanFloat n = case S.split (S.Pattern ".") (show n) of
 round100 :: Number -> Number
 round100 n = toNumber (round (n * 100.0)) / 100.0
 
-newtype SHours = SHours { day   :: Int
-                        , hours :: Number }
+type JHours = { task  :: String
+              , hours :: Number }
 
-newtype JHours = JHours { task  :: String
-                        , hours :: Number }
+type XHours = { day   :: Int
+              , task  :: String
+              , hours :: Number }
 
-newtype XHours = XHours { day   :: Int
-                        , task  :: String
-                        , hours :: Number }
+-- derive instance eqXHours :: Eq XHours
 
-derive instance eqXHours :: Eq XHours
-
-instance showXHours :: Show XHours where
-  show (XHours x) = show (x.day) <> " " <> x.task <> " " <> show (x.hours)
+--instance showXHours :: Show XHours where
+--  show x = show (x.day) <> " " <> x.task <> " " <> show (x.hours)
 
 parsedFileToXHours :: List (List String) -> Either String (List XHours)
 parsedFileToXHours ((_ : dates) : joblines) = readDates dates >>= readJobs (filter notEmpty joblines)
@@ -89,7 +86,7 @@ parsedFileToXHours ((_ : dates) : joblines) = readDates dates >>= readJobs (filt
         readJob :: List Int -> List String -> Either String (List XHours)
         readJob _   Nil         = Left "Error: No input line."
         readJob _  (task : Nil) = Left ("Error: No efforts found after job name " <> task <> ".")
-        readJob ds (task : hs)  = zipWith (\day hours -> XHours { task, day, hours } ) ds <$>
+        readJob ds (task : hs)  = zipWith (\day hours -> { task, day, hours } ) ds <$>
                                   sequence (map readHour hs)
 
         readJobs :: List (List String) -> List Int -> Either String (List XHours)
@@ -102,8 +99,8 @@ parsedFileToXHours ((_ : dates) : joblines) = readDates dates >>= readJobs (filt
 
 parsedFileToXHours _ = Left "Error: No input line found."
 
-goodJob :: XHours -> Boolean
-goodJob (XHours { task }) = isNothing (elemIndex task badtasks)
+goodJob :: forall r. { task :: String | r } -> Boolean
+goodJob { task } = isNothing (elemIndex task badtasks)
 
 -- TIL toUnfoldable :: M.Map Int String -> List (Tuple Int String)
 
@@ -112,60 +109,49 @@ goodJob (XHours { task }) = isNothing (elemIndex task badtasks)
 
 -- TIL Data.Map is also traversable so I can apply sequence()
 
-spread :: List SHours -> List JHours -> List XHours -> List XHours
-spread (SHours s : srest) (JHours j : jrest) acc | s.hours <= 0.0 = spread srest              (JHours j : jrest) acc
-                                                 | j.hours <= 0.0 = spread (SHours s : srest) jrest              acc
-                                                 | otherwise      = spread (SHours s { hours = s.hours - x } : srest)
-                                                                           (JHours j { hours = j.hours - x } : jrest)
-                                                                           (XHours { day : s.day, task : j.task, hours : x } : acc)
-                                                                    where x = min s.hours j.hours
+spread :: forall r. List { day :: Int, hours :: Number | r } -> List JHours -> List XHours -> List XHours
+spread (s : srest) (j : jrest) acc | s.hours <= 0.0 = spread srest              (j : jrest) acc
+                                   | j.hours <= 0.0 = spread (s : srest) jrest              acc
+                                   | otherwise      = spread (s { hours = s.hours - x } : srest)
+                                                             (j { hours = j.hours - x } : jrest)
+                                                             ({ day : s.day, task : j.task, hours : x } : acc)
+                                                      where x = min s.hours j.hours
 
 spread _ _ acc = reverse acc
 
-spread' :: List SHours -> List JHours -> List XHours
+spread' :: forall r. List { day :: Int, hours :: Number | r } -> List JHours -> List XHours
 spread' a b = spread a b Nil
 
-multiplyAllEfforts :: Number -> List XHours -> List XHours
-multiplyAllEfforts x = map (\(XHours { task, hours : h, day } ) -> XHours { hours : (h * x), day, task })
+multiplyAllEfforts :: forall r. Number -> List { hours :: Number | r } -> List { hours :: Number | r }
+multiplyAllEfforts f = map (\xh@{ hours : h } -> xh { hours = (h * f) })
 
-totalEfforts :: List XHours -> Number
-totalEfforts = foldr (\(XHours { hours } ) y -> hours + y) 0.0
+totalEfforts :: forall r. List { hours :: Number | r } -> Number
+totalEfforts = foldr (\{ hours } y -> hours + y) 0.0
 
 spreadSonstiges :: List XHours -> List XHours
-spreadSonstiges xhs = spread' shours jhours
-                      where shs = filter (\(XHours { task }) -> task == "Sonstiges") xhs
+spreadSonstiges xhs = spread' shs jhours
+                      where shs :: List XHours
+                            shs = filter (\{ task } -> task == "Sonstiges") xhs
+
+                            ghs :: List XHours
                             ghs = filter goodJob xhs
 
-                            hoursghs = totalEfforts ghs
-                            hoursshs = totalEfforts shs
+                            factoredghs :: List XHours
+                            factoredghs = multiplyAllEfforts (totalEfforts shs / totalEfforts ghs) ghs
 
-                            factor = hoursshs / hoursghs
-                            factoredghs = multiplyAllEfforts factor ghs
+                            sumJHours :: forall r. NonEmptyList { hours :: Number, task :: String | r } -> JHours
+                            sumJHours = foldr (\{ hours : hoursA, task }
+                                                { hours : hoursB } ->
+                                               { task, hours : hoursA + hoursB })
+                                        { task : "", hours : 0.0 }
 
-                            xHoursToSHours :: List XHours -> List SHours
-                            xHoursToSHours = map (\(XHours { hours, day } ) -> SHours { hours, day })
-
-                            xHoursToJHours :: List XHours -> List JHours
-                            xHoursToJHours = map (\(XHours { hours, task } ) -> JHours { hours, task })
-
-                            -- get number of Sonstiges hours that need to be distributed
-                            shours :: List SHours
-                            shours = xHoursToSHours shs
-
-                            sumJHours :: NonEmptyList JHours -> JHours
-                            sumJHours = foldr (\(JHours { hours : hoursA, task : taskA })
-                                                (JHours { hours : hoursB }) ->
-                                               JHours { task : taskA, hours : hoursA + hoursB })
-                                        (JHours { task : "", hours : 0.0 })
-
-                            groupJHours :: List JHours -> List (NonEmptyList JHours)
-                            groupJHours = groupBy (\(JHours { task : taskA })
-                                                    (JHours { task : taskB }) ->
+                            groupJHours :: forall r. List { task :: String | r } -> List (NonEmptyList { task :: String | r })
+                            groupJHours = groupBy (\{ task : taskA }
+                                                    { task : taskB } ->
                                                    taskA == taskB)
 
-                            -- get matching number of weighted job hours
                             jhours :: List JHours
-                            jhours = map sumJHours $ groupJHours $ xHoursToJHours factoredghs
+                            jhours = map sumJHours $ groupJHours $ factoredghs
 
 -- Create list of jobs where each job is the name of a project or account and has a map of date and hours
 -- (efforts)
@@ -184,11 +170,11 @@ instance doshowJob :: Show Job where
 xHoursToJobs :: List XHours -> List Job
 xHoursToJobs = groupxhs >>> map (map xHoursToJob) >>> map mergeJobs
                where xHoursToJob :: XHours -> Job
-                     xHoursToJob (XHours { day, task, hours }) = Job { job : task , efforts : M.singleton day hours }
+                     xHoursToJob { day, task, hours } = Job { job : task , efforts : M.singleton day hours }
 
                      groupxhs :: List XHours -> List (NonEmptyList XHours)
-                     groupxhs = groupBy (\(XHours { task : taskA })
-                                          (XHours { task : taskB }) ->
+                     groupxhs = groupBy (\{ task : taskA }
+                                          { task : taskB } ->
                                          taskA == taskB)
 
                      mergeJobs :: NonEmptyList Job -> Job

@@ -4,52 +4,52 @@ import Data.List (List(..), (:))
 import Data.Traversable (foldMap)
 import Effect (Effect)
 import Effect.Console (log)
-import Main (JHours(..), SHours(..), XHours(..), multiplyAllEfforts, renderToHTML, renderToHTML', spread', totalEfforts)
+import Main (JHours, XHours, multiplyAllEfforts, renderToHTML, renderToHTML', spread', totalEfforts)
 import Node.Encoding (Encoding(..))
 import Node.FS.Sync (readTextFile, writeTextFile)
 import Prelude (Unit, bind, discard, show, ($), (<>), (==))
 import Test.Assert (assert)
 
-testS :: List SHours
-testS = ( SHours { day : 1, hours : 10.0 }
-          : SHours { day : 2, hours : 10.0 }
-          : SHours { day : 3, hours : 10.0 }
-          : Nil )
+testS :: List XHours
+testS = ({ day : 1, hours : 10.0, task : "" }
+         : { day : 2, hours : 10.0, task : "" }
+         : { day : 3, hours : 10.0, task : "" }
+         : Nil )
 
 testJ1 :: List JHours
-testJ1 = ( JHours { task : "task 1", hours : 15.0 }
-           : JHours { task : "task 2", hours : 15.0 }
-           : Nil )
+testJ1 = ({ task : "task 1", hours : 15.0 }
+          : { task : "task 2", hours : 15.0 }
+          : Nil )
 
 testX1 :: List XHours
-testX1 = ( XHours { day : 1, task : "task 1", hours : 10.0 }
-           : XHours { day : 2, task : "task 1", hours : 5.0 }
-           : XHours { day : 2, task : "task 2", hours : 5.0 }
-           : XHours { day : 3, task : "task 2", hours : 10.0 }
-           : Nil )
+testX1 = ({ day : 1, task : "task 1", hours : 10.0 }
+          : { day : 2, task : "task 1", hours : 5.0 }
+          : { day : 2, task : "task 2", hours : 5.0 }
+          : { day : 3, task : "task 2", hours : 10.0 }
+          : Nil )
 
 testJ2 :: List JHours
-testJ2 = ( JHours { task : "task 1", hours : 7.5 }
-           : JHours { task : "task 2", hours : 7.5 }
-           : JHours { task : "task 3", hours : 7.5 }
-           : JHours { task : "task 4", hours : 7.5 }
-           : Nil )
+testJ2 = ({ task : "task 1", hours : 7.5 }
+          : { task : "task 2", hours : 7.5 }
+          : { task : "task 3", hours : 7.5 }
+          : { task : "task 4", hours : 7.5 }
+          : Nil )
 
 testX2 :: List XHours
-testX2 = ( XHours { day : 1, task : "task 1", hours :  7.5 }
-           : XHours { day : 1, task : "task 2", hours :  2.5 }
-           : XHours { day : 2, task : "task 2", hours :  5.0 }
-           : XHours { day : 2, task : "task 3", hours :  5.0 }
-           : XHours { day : 3, task : "task 3", hours :  2.5 }
-           : XHours { day : 3, task : "task 4", hours :  7.5 }
-           : Nil )
+testX2 = ({ day : 1, task : "task 1", hours :  7.5 }
+          : { day : 1, task : "task 2", hours :  2.5 }
+          : { day : 2, task : "task 2", hours :  5.0 }
+          : { day : 2, task : "task 3", hours :  5.0 }
+          : { day : 3, task : "task 3", hours :  2.5 }
+          : { day : 3, task : "task 4", hours :  7.5 }
+          : Nil )
 
 testX1Half :: List XHours
-testX1Half = ( XHours { day : 1, task : "task 1", hours : 5.0 }
-               : XHours { day : 2, task : "task 1", hours : 2.5 }
-               : XHours { day : 2, task : "task 2", hours : 2.5 }
-               : XHours { day : 3, task : "task 2", hours : 5.0 }
-               : Nil )
+testX1Half = ({ day : 1, task : "task 1", hours : 5.0 }
+              : { day : 2, task : "task 1", hours : 2.5 }
+              : { day : 2, task : "task 2", hours : 2.5 }
+              : { day : 3, task : "task 2", hours : 5.0 }
+              : Nil )
 
 main :: Effect Unit
 main =
