@@ -128,6 +128,11 @@ multiplyAllEfforts f = map (\xh@{ hours : h } -> xh { hours = (h * f) })
 totalEfforts :: forall r. List { hours :: Number | r } -> Number
 totalEfforts = foldr (\{ hours } y -> hours + y) 0.0
 
+groupByTask :: forall r. List { task :: String | r } -> List (NonEmptyList { task :: String | r })
+groupByTask = groupBy (\{ task : taskA }
+                        { task : taskB } ->
+                       taskA == taskB)
+
 spreadSonstiges :: List XHours -> List XHours
 spreadSonstiges xhs = spread' shs jhours
                       where shs :: List XHours
@@ -145,13 +150,8 @@ spreadSonstiges xhs = spread' shs jhours
                                                { task, hours : hoursA + hoursB })
                                         { task : "", hours : 0.0 }
 
-                            groupJHours :: forall r. List { task :: String | r } -> List (NonEmptyList { task :: String | r })
-                            groupJHours = groupBy (\{ task : taskA }
-                                                    { task : taskB } ->
-                                                   taskA == taskB)
-
                             jhours :: List JHours
-                            jhours = map sumJHours $ groupJHours $ factoredghs
+                            jhours = map sumJHours $ groupByTask $ factoredghs
 
 -- Create list of jobs where each job is the name of a project or account and has a map of date and hours
 -- (efforts)
@@ -168,14 +168,9 @@ instance doshowJob :: Show Job where
   show = show <<< fold <<< map (\x -> x <> " ") <<< showJob (range 1 31)
 
 xHoursToJobs :: List XHours -> List Job
-xHoursToJobs = groupxhs >>> map (map xHoursToJob) >>> map mergeJobs
+xHoursToJobs = groupByTask >>> map (map xHoursToJob) >>> map mergeJobs
                where xHoursToJob :: XHours -> Job
                      xHoursToJob { day, task, hours } = Job { job : task , efforts : M.singleton day hours }
-
-                     groupxhs :: List XHours -> List (NonEmptyList XHours)
-                     groupxhs = groupBy (\{ task : taskA }
-                                          { task : taskB } ->
-                                         taskA == taskB)
 
                      mergeJobs :: NonEmptyList Job -> Job
                      mergeJobs = foldr (\(Job { job : jobA, efforts : effortsA })
