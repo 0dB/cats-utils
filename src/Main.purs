@@ -3,7 +3,7 @@
 -- TODO 2020-11 Write test case and then add data type for one row. Then extend by one more field in the
 -- row.
 
-module Main (JHours(..), XHours(..), spread', renderToHTML, renderToHTML', main, Job(Job), Efforts, multiplyAllEfforts, totalEfforts) where
+module Main (JHours(..), Common, XHours(..), spread', renderToHTML, renderToHTML', main, Job(Job), Efforts, multiplyAllEfforts, totalEfforts) where
 
 import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<<<), show
                , (>>=), (*), (/), (>>>), (<$>), (<*>), otherwise, (<=), min ,(+))
@@ -58,12 +58,18 @@ toGermanFloat n = case S.split (S.Pattern ".") (show n) of
 round100 :: Number -> Number
 round100 n = toNumber (round (n * 100.0)) / 100.0
 
-type JHours = { task  :: String
-              , hours :: Number }
+-- see
+-- https://stackoverflow.com/questions/51986883/how-to-combine-rows-of-record-types-in-purescript-is-there-any-alternative-to
+-- "The definition of Common uses parentheses, not curly braces. That is because Common is a row, not a record. You can
+-- make a record out of it [by prepending Record]." "What you want to do in PureScript is prefer "naked" records and
+-- only resort to wrapping them in newtype when you really have to."
 
-type XHours = { day   :: Int
-              , task  :: String
-              , hours :: Number }
+type Common = ( task  :: String
+              , hours :: Number )
+
+type JHours = Record Common
+
+type XHours = { day :: Int | Common }
 
 -- derive instance eqXHours :: Eq XHours
 
