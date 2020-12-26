@@ -1,9 +1,6 @@
 -- create HTML with `spago bundle-app`
 
--- TODO 2020-11 Write test case and then add data type for one row. Then extend by one more field in the
--- row.
-
-module Main (JHours(..), Common, XHours(..), spread', renderToHTML, renderToHTML', main, Job(Job), Efforts, multiplyAllEfforts, totalEfforts) where
+module Main (JHours, Common, XHours, spread', renderToHTML, renderToHTML', main, Job, Efforts, multiplyAllEfforts, totalEfforts) where
 
 import Prelude (class Show, Unit, bind, const, map, pure, ($), (-), (/=), (<>), (==), (<<<), show
                , (>>=), (*), (/), (>>>), (<$>), (<*>), otherwise, (<=), min ,(+))
@@ -29,8 +26,6 @@ import Text.Smolder.Markup (Markup, MarkupM, text) as MU
 import Text.Smolder.Renderer.String (render) as TSRS
 import Flare (UI, textarea, radioGroup, intSlider)
 import Flare.Smolder (runFlareHTML)
-
-import Data.Eq (class Eq)
 
 badtasks = ("INTERFLEX" : "D1CS" : "ORGA" : "AZ" : "Sonstiges" : Nil) :: List String
 
@@ -60,21 +55,20 @@ round100 n = toNumber (round (n * 100.0)) / 100.0
 
 -- see
 -- https://stackoverflow.com/questions/51986883/how-to-combine-rows-of-record-types-in-purescript-is-there-any-alternative-to
+
 -- "The definition of Common uses parentheses, not curly braces. That is because Common is a row, not a record. You can
--- make a record out of it [by prepending Record]." "What you want to do in PureScript is prefer "naked" records and
--- only resort to wrapping them in newtype when you really have to."
+-- make a record out of it [by prepending Record]."
+
+-- "What you want to do in PureScript is prefer "naked" records and only resort to wrapping them in newtype when you
+-- really have to."
 
 type Common = ( task  :: String
               , hours :: Number )
 
 type JHours = Record Common
 
-type XHours = { day :: Int | Common }
-
--- derive instance eqXHours :: Eq XHours
-
---instance showXHours :: Show XHours where
---  show x = show (x.day) <> " " <> x.task <> " " <> show (x.hours)
+-- I could also make a type for ( day :: Int | Common ) and then extend it
+type XHours = Record ( day :: Int | Common )
 
 parsedFileToXHours :: List (List String) -> Either String (List XHours)
 parsedFileToXHours ((_ : dates) : joblines) = readDates dates >>= readJobs (filter notEmpty joblines)
@@ -159,35 +153,26 @@ spreadSonstiges xhs = spread' shs jhours
                             jhours :: List JHours
                             jhours = map sumJHours $ groupByTask $ factoredghs
 
--- Create list of jobs where each job is the name of a project or account and has a map of date and hours
--- (efforts)
-
 type Efforts = M.Map Int Number
 
-newtype Job = Job { job     :: String
-                  , efforts :: Efforts }
-
-derive instance eqJob :: Eq Job
-
--- cheap and dirty show for now
-instance doshowJob :: Show Job where
-  show = show <<< fold <<< map (\x -> x <> " ") <<< showJob (range 1 31)
+type Job = { task    :: String
+           , efforts :: Efforts }
 
 xHoursToJobs :: List XHours -> List Job
 xHoursToJobs = groupByTask >>> map (map xHoursToJob) >>> map mergeJobs
                where xHoursToJob :: XHours -> Job
-                     xHoursToJob { day, task, hours } = Job { job : task , efforts : M.singleton day hours }
+                     xHoursToJob { day, task, hours } = { task , efforts : M.singleton day hours }
 
                      mergeJobs :: NonEmptyList Job -> Job
-                     mergeJobs = foldr (\(Job { job : jobA, efforts : effortsA })
-                                         (Job { job : jobB, efforts : effortsB }) ->
-                                        (Job { job : jobA, efforts : effortsA <> effortsB }))
-                                 (Job { job : "Nothing", efforts : M.empty })
+                     mergeJobs = foldr (\{ task : taskA, efforts : effortsA }
+                                         { task : taskB, efforts : effortsB } ->
+                                        { task : taskA, efforts : effortsA <> effortsB })
+                                 { task : "Nothing", efforts : M.empty }
 
 filterDateRange :: List Int -> List Job -> List Job
 filterDateRange days jobs = map (go days) jobs
   where go :: List Int -> Job -> Job
-        go days' (Job j) = Job (j { efforts = filteredEfforts days' j.efforts })
+        go days' j = j { efforts = filteredEfforts days' j.efforts }
 
         filteredEfforts :: List Int -> Efforts -> Efforts
         filteredEfforts days' efforts = foldMap (filterEfforts efforts) days'
@@ -195,8 +180,8 @@ filterDateRange days jobs = map (go days) jobs
         filterEfforts :: Efforts -> Int -> Efforts
         filterEfforts es day = maybe M.empty (M.singleton day) (M.lookup day es)
 
-nonZeroP :: Job -> Boolean
-nonZeroP (Job { efforts }) = or $ map ((/=) 0.0) $ M.values efforts
+nonZeroP :: forall r. { efforts :: Efforts | r } -> Boolean
+nonZeroP { efforts } = or $ map ((/=) 0.0) $ M.values efforts
 
 filler = ("" : "" : Nil) :: List String
 
@@ -220,7 +205,7 @@ myShowN n = case (toGermanFloat (round100 n)) of
               Left  e  -> e
 
 showJob' :: List Int -> Job -> List String
-showJob' days (Job { job, efforts }) = job : foldMap (\d -> showEffort d : Nil) days
+showJob' days { task, efforts } = task : foldMap (\d -> showEffort d : Nil) days
   where showEffort :: Int -> String
         showEffort day = case M.lookup day efforts of
                            Just n -> myShowN n
@@ -264,8 +249,8 @@ showJobs' :: List Int -> List Job -> List (List String)
 showJobs' days = (:) (showHeaderRow' days) <<<
                  map (showJob' days)
 
--- date range (“week”) is used *twice*, first to find dates in the week being looked at
--- (and then for filtering) and then for rendering the week (`showJobs`)
+-- date range (“week”) is used *twice*, first to find dates in the week being looked at (and then for filtering) and
+-- then for rendering the week (`showJobs`)
 
 groupFilterShow :: List Job -> List Int -> List (List String)
 groupFilterShow js r = showJobs r $ filter nonZeroP $ filterDateRange r $ js
