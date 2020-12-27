@@ -62,6 +62,12 @@ round100 n = toNumber (round (n * 100.0)) / 100.0
 -- "What you want to do in PureScript is prefer "naked" records and only resort to wrapping them in newtype when you
 -- really have to."
 
+-- see also https://github.com/purescript/documentation/blob/master/language/Records.md
+
+-- see also https://leastfixedpoint.net/2018/8/27/row_types_and_records_in_purescript "even if you see :: here, it's not
+-- a value on the left and a type on the right, it's a type on the left and a kind on the right (You can think about a
+-- kind as being the type of types)."
+
 type Common = ( task  :: String
               , hours :: Number )
 
@@ -122,6 +128,8 @@ spread _ _ acc = reverse acc
 spread' :: forall r. List { day :: Int, hours :: Number | r } -> List JHours -> List XHours
 spread' a b = spread a b Nil
 
+-- TIL In the type signature, in { hours :: Number | r } `hours` is a Type, not a field (even though it looks like one)
+
 multiplyAllEfforts :: forall r. Number -> List { hours :: Number | r } -> List { hours :: Number | r }
 multiplyAllEfforts f = map (\xh@{ hours : h } -> xh { hours = (h * f) })
 
@@ -165,7 +173,7 @@ xHoursToJobs = groupByTask >>> map (map xHoursToJob) >>> map mergeJobs
 
                      mergeJobs :: NonEmptyList Job -> Job
                      mergeJobs = foldr (\{ task : taskA, efforts : effortsA }
-                                         { task : taskB, efforts : effortsB } ->
+                                         { efforts : effortsB } ->
                                         { task : taskA, efforts : effortsA <> effortsB })
                                  { task : "Nothing", efforts : M.empty }
 
@@ -196,7 +204,7 @@ internalExternal Nil = Nil
 -- too many fields.
 
 formatRowForCATS :: List String -> List String
-formatRowForCATS (job : efforts) = (job : Nil) <> filler <> foldMap (\e -> "" : e : Nil) efforts
+formatRowForCATS (task : efforts) = (task : Nil) <> filler <> foldMap (\e -> "" : e : Nil) efforts
 formatRowForCATS j = j
 
 myShowN :: Number -> String
