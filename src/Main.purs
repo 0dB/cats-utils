@@ -191,7 +191,7 @@ filterDateRange days jobs = map (go days) jobs
 nonZeroP :: forall r. { efforts :: Efforts | r } -> Boolean
 nonZeroP { efforts } = or $ map ((/=) 0.0) $ M.values efforts
 
-filler = ("" : "" : Nil) :: List String
+filler = ("" : "" : "ID" : "" : Nil) :: List String
 
 internalExternal :: List String -> List String
 internalExternal (job : efforts) = job' <> efforts
@@ -239,7 +239,7 @@ showHeaderRow = showHeaderRow' >>> formatRowForCATS >>> prefixHeader
 -- insert blank line every six rows (CATS only lets me add six lines at a time)
 -- TODO 2020-11 Make this safer by introducing type with certain amount of fields (maybe even named)
 
-emptyRow = (("" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : Nil) : Nil)  :: List (List String)
+emptyRow = (("" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : "" : Nil) : Nil)  :: List (List String)
 
 -- Renamed to myGroupBy. Because there is a groupBy in Data.List which I might still need.
 
