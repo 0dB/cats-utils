@@ -15,7 +15,7 @@ import Data.Int (fromString, round, toNumber)
 import Data.Maybe (Maybe(..), maybe, isNothing)
 import Data.Either (Either(..), either)
 import Data.Traversable (sequence, or, foldMap, fold, foldr)
-import Data.String (take, split, Pattern(..)) as S
+import Data.String (split, Pattern(..)) as S
 import Global as G
 
 import Data.Monoid (mempty)
@@ -166,6 +166,8 @@ type Efforts = M.Map Int Number
 type Job = { task    :: String
            , efforts :: Efforts }
 
+-- convert to different data structure for further processing
+
 xHoursToJobs :: List XHours -> List Job
 xHoursToJobs = groupByTask >>> map (map xHoursToJob) >>> map mergeJobs
                where xHoursToJob :: XHours -> Job
@@ -177,28 +179,27 @@ xHoursToJobs = groupByTask >>> map (map xHoursToJob) >>> map mergeJobs
                                         { task : taskA, efforts : effortsA <> effortsB })
                                  { task : "Nothing", efforts : M.empty }
 
-filterDateRange :: List Int -> List Job -> List Job
-filterDateRange days jobs = map (go days) jobs
-  where go :: List Int -> Job -> Job
-        go days' j = j { efforts = filteredEfforts days' j.efforts }
+-- remove specified days from all jobs
 
-        filteredEfforts :: List Int -> Efforts -> Efforts
-        filteredEfforts days' efforts = foldMap (filterEfforts efforts) days'
-
-        filterEfforts :: Efforts -> Int -> Efforts
+filterDateRange :: forall r. List Int -> List { efforts :: Efforts | r } -> List { efforts :: Efforts | r }
+filterDateRange days = map (removeDaysFromEfforts days)
+  where filterEfforts :: Efforts -> Int -> Efforts
         filterEfforts es day = maybe M.empty (M.singleton day) (M.lookup day es)
+
+        filteredEfforts :: Efforts -> List Int -> Efforts
+        filteredEfforts efforts = foldMap (filterEfforts efforts)
+
+        removeDaysFromEfforts :: forall r1. List Int -> { efforts :: Efforts | r1 } -> { efforts :: Efforts | r1 }
+        removeDaysFromEfforts days' j = j { efforts = filteredEfforts j.efforts days' }
+
+-- true if at least one non-zero value in efforts
 
 nonZeroP :: forall r. { efforts :: Efforts | r } -> Boolean
 nonZeroP { efforts } = or $ map ((/=) 0.0) $ M.values efforts
 
-filler = ("" : "" : "ID" : "" : Nil) :: List String
+-- "ID" is required since 2021-01-01. I think it means "IT Development".
 
-internalExternal :: List String -> List String
-internalExternal (job : efforts) = job' <> efforts
-  where job' = case S.take 1 job == "S" of
-                 true  -> ("" : job : Nil)
-                 false -> (job : "" : Nil)
-internalExternal Nil = Nil
+filler = ("" : "" : "" : "ID" : "" : Nil) :: List String
 
 -- TODO 2020-11 Make a type out of this so that I see what "fields" CATS expects and don't send too few or
 -- too many fields.
@@ -209,6 +210,7 @@ formatRowForCATS j = j
 
 myShowN :: Number -> String
 myShowN n = case (toGermanFloat (round100 n)) of
+              Right "0" -> ""
               Right n' -> n'
               Left  e  -> e
 
@@ -220,7 +222,7 @@ showJob' days { task, efforts } = task : foldMap (\d -> showEffort d : Nil) days
                            Nothing -> ""
 
 showJob :: List Int -> Job -> List String
-showJob days = showJob' days >>> formatRowForCATS >>> internalExternal
+showJob days = showJob' days >>> formatRowForCATS
 
 -- Move formatRowForCATS and internalExternal (using map) into higher level function used by showJobs and this higher
 -- level function just processes header row differently than the remaining rows. Can I successively get showJobs from
@@ -230,7 +232,7 @@ showHeaderRow' :: List Int -> List String
 showHeaderRow' days = ("" : Nil) <> foldMap (\d -> show d : Nil) days
 
 prefixHeader :: List String -> List String
-prefixHeader (c : cs) = ("EXTERN" : "INTERN" : Nil) <> cs
+prefixHeader (c : cs) = ("CATS ID" : Nil) <> cs
 prefixHeader Nil = Nil
 
 showHeaderRow :: List Int -> List String
