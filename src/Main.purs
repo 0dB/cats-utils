@@ -232,8 +232,8 @@ showHeaderRow' :: List Int -> List String
 showHeaderRow' days = ("" : Nil) <> foldMap (\d -> show d : Nil) days
 
 prefixHeader :: List String -> List String
-prefixHeader (c : cs) = ("CATS ID" : Nil) <> cs
-prefixHeader Nil = Nil
+prefixHeader (c1 : c2 : c3 : c4 : c5 : cs) = ("CATS ID" : "" : "" : "" : "Type" : Nil) <> cs
+prefixHeader _ = Nil
 
 showHeaderRow :: List Int -> List String
 showHeaderRow = showHeaderRow' >>> formatRowForCATS >>> prefixHeader
